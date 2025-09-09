@@ -38,36 +38,61 @@ class ClipboardManager: ObservableObject {
         
         let menu = NSMenu()
         
-        // 履歴セクション
-        if !dataManager.historyItems.isEmpty {
+        // 履歴セクション（カテゴリ別表示）
+        let groupedItems = dataManager.getItemsByCategory()
+        if !groupedItems.isEmpty {
             let historyTitle = NSMenuItem(title: "直近のコピー履歴", action: nil, keyEquivalent: "")
             historyTitle.isEnabled = false
             menu.addItem(historyTitle)
             
-            // 履歴アイテムを追加（最大10件表示）
-            let displayCount = min(dataManager.historyItems.count, 10)
-            for i in 0..<displayCount {
-                let item = dataManager.historyItems[i]
-                let menuItem = NSMenuItem(title: item.displayText, action: #selector(copyToClipboard(_:)), keyEquivalent: "")
-                menuItem.target = self
-                menuItem.representedObject = item.content
-                menu.addItem(menuItem)
+            // カテゴリ別に表示
+            for category in dataManager.categories {
+                if let items = groupedItems[category.id], !items.isEmpty {
+                    // カテゴリ名を追加
+                    let categoryItem = NSMenuItem(title: "  📁 \(category.name)", action: nil, keyEquivalent: "")
+                    categoryItem.isEnabled = false
+                    menu.addItem(categoryItem)
+                    
+                    // そのカテゴリのアイテムを追加（最大5件）
+                    let displayCount = min(items.count, 5)
+                    for i in 0..<displayCount {
+                        let item = items[i]
+                        let menuItem = NSMenuItem(title: "    \(item.displayText)", action: #selector(copyToClipboard(_:)), keyEquivalent: "")
+                        menuItem.target = self
+                        menuItem.representedObject = item.content
+                        menu.addItem(menuItem)
+                    }
+                }
             }
             
             menu.addItem(NSMenuItem.separator())
         }
         
-        // お気に入りセクション
-        if !dataManager.favoriteItems.isEmpty {
+        // お気に入りセクション（フォルダ別表示）
+        let groupedFavorites = dataManager.getFavoritesByFolder()
+        if !groupedFavorites.isEmpty {
             let favoritesTitle = NSMenuItem(title: "お気に入り", action: nil, keyEquivalent: "")
             favoritesTitle.isEnabled = false
             menu.addItem(favoritesTitle)
             
-            for item in dataManager.favoriteItems {
-                let menuItem = NSMenuItem(title: item.displayText, action: #selector(copyToClipboard(_:)), keyEquivalent: "")
-                menuItem.target = self
-                menuItem.representedObject = item.content
-                menu.addItem(menuItem)
+            // フォルダ別に表示
+            for folder in dataManager.favoriteFolders {
+                if let items = groupedFavorites[folder.id], !items.isEmpty {
+                    // フォルダ名を追加
+                    let folderItem = NSMenuItem(title: "  📁 \(folder.name)", action: nil, keyEquivalent: "")
+                    folderItem.isEnabled = false
+                    menu.addItem(folderItem)
+                    
+                    // そのフォルダのアイテムを追加（最大5件）
+                    let displayCount = min(items.count, 5)
+                    for i in 0..<displayCount {
+                        let item = items[i]
+                        let menuItem = NSMenuItem(title: "    \(item.displayText)", action: #selector(copyToClipboard(_:)), keyEquivalent: "")
+                        menuItem.target = self
+                        menuItem.representedObject = item.content
+                        menu.addItem(menuItem)
+                    }
+                }
             }
             
             menu.addItem(NSMenuItem.separator())
