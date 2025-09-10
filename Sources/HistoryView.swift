@@ -14,39 +14,58 @@ struct HistoryView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // タブビュー
+            // アニメーション付きタブビュー
             Picker("表示モード", selection: $selectedTab) {
                 Text("履歴").tag(0)
                 Text("お気に入り").tag(1)
             }
             .pickerStyle(SegmentedPickerStyle())
             .padding()
+            .animation(.easeInOut(duration: 0.3), value: selectedTab)
             
-            // 検索バー
+            // 改善された検索バー
             HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                
-                TextField("検索...", text: $searchText)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                
-                if !searchText.isEmpty {
-                    Button("クリア") {
-                        searchText = ""
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 14))
+                    
+                    TextField("検索...", text: $searchText)
+                        .textFieldStyle(PlainTextFieldStyle())
+                        .font(.system(size: 14))
+                    
+                    if !searchText.isEmpty {
+                        Button(action: { searchText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 14))
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(8)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            
+            // シンプルなコンテンツエリア
+            Group {
+                if selectedTab == 0 {
+                    historyListView
+                        .transition(.opacity)
+                } else {
+                    favoritesListView
+                        .transition(.opacity)
                 }
             }
-            .padding(.horizontal)
-            
-            // コンテンツエリア
-            if selectedTab == 0 {
-                historyListView
-            } else {
-                favoritesListView
-            }
+            .animation(.easeInOut(duration: 0.2), value: selectedTab)
         }
-        .frame(minWidth: 600, minHeight: 400)
+        .frame(minWidth: 800, minHeight: 600)
+        .background(Color(NSColor.controlBackgroundColor))
     }
     
     // MARK: - 履歴リストビュー
@@ -59,55 +78,91 @@ struct HistoryView: View {
                 
                 Spacer()
                 
-                // カテゴリフィルター
-                Menu {
-                    Button("すべてのカテゴリ") {
-                        selectedCategory = nil
-                    }
-                    
-                    ForEach(dataManager.categories) { category in
-                        Button(category.name) {
-                            selectedCategory = category.id
+                HStack(spacing: 12) {
+                    // カテゴリフィルター
+                    Menu {
+                        Button("すべてのカテゴリ") {
+                            selectedCategory = nil
                         }
+                        
+                        ForEach(dataManager.categories) { category in
+                            Button(category.name) {
+                                selectedCategory = category.id
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "tag.fill")
+                                .font(.system(size: 12))
+                            Text(selectedCategory == nil ? "すべて" : dataManager.getCategory(by: selectedCategory!).name)
+                                .font(.system(size: 13))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundColor(.blue)
+                        .cornerRadius(6)
                     }
-                } label: {
-                    HStack {
-                        Image(systemName: "folder")
-                        Text(selectedCategory == nil ? "すべて" : dataManager.getCategory(by: selectedCategory!).name)
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Button("カテゴリ管理") {
+                        showingCategoryManager = true
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.gray.opacity(0.1))
+                    .foregroundColor(.primary)
+                    .cornerRadius(6)
+                    .font(.system(size: 13))
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Button("履歴をクリア") {
+                        showingClearAlert = true
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.red.opacity(0.1))
+                    .foregroundColor(.red)
+                    .cornerRadius(6)
+                    .font(.system(size: 13))
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .buttonStyle(PlainButtonStyle())
-                
-                Button("カテゴリ管理") {
-                    showingCategoryManager = true
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                Button("履歴をクリア") {
-                    showingClearAlert = true
-                }
-                .buttonStyle(PlainButtonStyle())
-                .foregroundColor(.red)
             }
             .padding()
             
             Divider()
             
-            // リスト
+            // カード形式のリスト
             if filteredHistoryItems.isEmpty {
                 emptyStateView(message: searchText.isEmpty ? "履歴がありません" : "検索結果がありません")
             } else {
-                List(filteredHistoryItems) { item in
-                    HistoryItemRow(
-                        item: item,
-                        category: dataManager.getCategory(by: item.categoryId),
-                        onCopy: { copyToClipboard(item.content) },
-                        onAddToFavorites: { dataManager.addToFavorites(item) },
-                        onDelete: { dataManager.removeFromHistory(item) },
-                        onChangeCategory: { categoryId in
-                            dataManager.changeItemCategory(item, to: categoryId)
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(Array(filteredHistoryItems.enumerated()), id: \.element.id) { index, item in
+                            HistoryItemRow(
+                                item: item,
+                                category: dataManager.getCategory(by: item.categoryId),
+                                onCopy: { copyToClipboard(item.content) },
+                                onAddToFavorites: { dataManager.addToFavorites(item) },
+                                onDelete: { dataManager.removeFromHistory(item) },
+                                onChangeCategory: { categoryId in
+                                    dataManager.changeItemCategory(item, to: categoryId)
+                                }
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
+                            .transition(.asymmetric(
+                                insertion: .scale.combined(with: .opacity),
+                                removal: .scale.combined(with: .opacity)
+                            ))
+                            .animation(.easeInOut(duration: 0.3).delay(Double(index) * 0.05), value: filteredHistoryItems.count)
                         }
-                    )
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
                 }
             }
         }
@@ -134,48 +189,79 @@ struct HistoryView: View {
                 
                 Spacer()
                 
-                // お気に入りフォルダフィルター
-                Menu {
-                    Button("すべてのフォルダ") {
-                        selectedFavoriteFolder = nil
-                    }
-                    
-                    ForEach(dataManager.favoriteFolders) { folder in
-                        Button(folder.name) {
-                            selectedFavoriteFolder = folder.id
+                HStack(spacing: 12) {
+                    // お気に入りフォルダフィルター
+                    Menu {
+                        Button("すべてのフォルダ") {
+                            selectedFavoriteFolder = nil
                         }
+                        
+                        ForEach(dataManager.favoriteFolders) { folder in
+                            Button(folder.name) {
+                                selectedFavoriteFolder = folder.id
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 12))
+                            Text(selectedFavoriteFolder == nil ? "すべて" : dataManager.getFavoriteFolder(by: selectedFavoriteFolder!).name)
+                                .font(.system(size: 13))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.orange.opacity(0.1))
+                        .foregroundColor(.orange)
+                        .cornerRadius(6)
                     }
-                } label: {
-                    HStack {
-                        Image(systemName: "folder")
-                        Text(selectedFavoriteFolder == nil ? "すべて" : dataManager.getFavoriteFolder(by: selectedFavoriteFolder!).name)
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Button("フォルダ管理") {
+                        showingFavoriteFolderManager = true
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.gray.opacity(0.1))
+                    .foregroundColor(.primary)
+                    .cornerRadius(6)
+                    .font(.system(size: 13))
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .buttonStyle(PlainButtonStyle())
-                
-                Button("フォルダ管理") {
-                    showingFavoriteFolderManager = true
-                }
-                .buttonStyle(PlainButtonStyle())
             }
             .padding()
             
             Divider()
             
-            // リスト
+            // カード形式のリスト
             if filteredFavoriteItems.isEmpty {
                 emptyStateView(message: searchText.isEmpty ? "お気に入りがありません" : "検索結果がありません")
             } else {
-                List(filteredFavoriteItems) { item in
-                    FavoriteItemRow(
-                        item: item,
-                        folder: dataManager.getFavoriteFolder(by: item.favoriteFolderId ?? FavoriteFolder.defaultFolder.id),
-                        onCopy: { copyToClipboard(item.content) },
-                        onDelete: { dataManager.removeFromFavorites(item) },
-                        onChangeFolder: { folderId in
-                            dataManager.changeFavoriteFolder(item, to: folderId)
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(Array(filteredFavoriteItems.enumerated()), id: \.element.id) { index, item in
+                            FavoriteItemRow(
+                                item: item,
+                                folder: dataManager.getFavoriteFolder(by: item.favoriteFolderId ?? FavoriteFolder.defaultFolder.id),
+                                onCopy: { copyToClipboard(item.content) },
+                                onDelete: { dataManager.removeFromFavorites(item) },
+                                onChangeFolder: { folderId in
+                                    dataManager.changeFavoriteFolder(item, to: folderId)
+                                }
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
+                            .transition(.asymmetric(
+                                insertion: .scale.combined(with: .opacity),
+                                removal: .scale.combined(with: .opacity)
+                            ))
+                            .animation(.easeInOut(duration: 0.3).delay(Double(index) * 0.05), value: filteredFavoriteItems.count)
                         }
-                    )
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
                 }
             }
         }
