@@ -25,8 +25,15 @@ class ClipboardManager: ObservableObject {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         
         if let button = statusItem?.button {
-            // システムのクリップボードアイコンを使用
-            button.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "クリップボードマネージャー")
+            // よりモダンなアイコンに変更
+            button.image = NSImage(systemSymbolName: "doc.on.clipboard.fill", accessibilityDescription: "クリップボードマネージャー")
+            button.image?.size = NSSize(width: 18, height: 18)
+            button.imagePosition = .imageOnly
+            
+            // ホバー効果の追加
+            button.appearsDisabled = false
+            button.isBordered = false
+            
             button.action = #selector(statusBarButtonClicked)
             button.target = self
         }
@@ -71,15 +78,15 @@ class ClipboardManager: ObservableObject {
         // お気に入りセクション（フォルダ別表示）
         let groupedFavorites = dataManager.getFavoritesByFolder()
         if !groupedFavorites.isEmpty {
-            let favoritesTitle = NSMenuItem(title: "お気に入り", action: nil, keyEquivalent: "")
+            let favoritesTitle = NSMenuItem(title: "⭐ お気に入り", action: nil, keyEquivalent: "")
             favoritesTitle.isEnabled = false
             menu.addItem(favoritesTitle)
             
             // フォルダ別に表示
             for folder in dataManager.favoriteFolders {
                 if let items = groupedFavorites[folder.id], !items.isEmpty {
-                    // フォルダ名を追加
-                    let folderItem = NSMenuItem(title: "  📁 \(folder.name)", action: nil, keyEquivalent: "")
+                    // フォルダ名を追加（より見やすいアイコン）
+                    let folderItem = NSMenuItem(title: "  📂 \(folder.name)", action: nil, keyEquivalent: "")
                     folderItem.isEnabled = false
                     menu.addItem(folderItem)
                     
@@ -87,7 +94,7 @@ class ClipboardManager: ObservableObject {
                     let displayCount = min(items.count, 5)
                     for i in 0..<displayCount {
                         let item = items[i]
-                        let menuItem = NSMenuItem(title: "    \(item.displayText)", action: #selector(copyToClipboard(_:)), keyEquivalent: "")
+                        let menuItem = NSMenuItem(title: "    • \(item.displayText)", action: #selector(copyToClipboard(_:)), keyEquivalent: "")
                         menuItem.target = self
                         menuItem.representedObject = item.content
                         menu.addItem(menuItem)
@@ -99,14 +106,14 @@ class ClipboardManager: ObservableObject {
         }
         
         // 管理メニュー
-        let manageMenuItem = NSMenuItem(title: "履歴を管理...", action: #selector(openHistoryWindow), keyEquivalent: "")
+        let manageMenuItem = NSMenuItem(title: "⚙️ 履歴を管理...", action: #selector(openHistoryWindow), keyEquivalent: "")
         manageMenuItem.target = self
         menu.addItem(manageMenuItem)
         
         menu.addItem(NSMenuItem.separator())
         
         // 終了メニュー
-        let quitMenuItem = NSMenuItem(title: "終了", action: #selector(quitApplication), keyEquivalent: "q")
+        let quitMenuItem = NSMenuItem(title: "🚪 終了", action: #selector(quitApplication), keyEquivalent: "q")
         quitMenuItem.target = self
         menu.addItem(quitMenuItem)
         
