@@ -1,18 +1,45 @@
 import SwiftUI
 import AppKit
+import Foundation
 
-// MARK: - プロフェッショナル・ブルーテーマ
-extension Color {
-    // プロフェッショナル・ブルーテーマのカラーパレット
-    static let professionalBlue = Color(hex: "1976D2")      // メインアクセント
-    static let professionalBlueDark = Color(hex: "0D47A1")  // ダークアクセント
-    static let professionalBlueLight = Color(hex: "BBDEFB") // ライトアクセント
-    static let professionalBackground = Color(hex: "E3F2FD") // ベース背景
-    static let professionalBackgroundLight = Color(hex: "F8FBFF") // ライト背景
-    static let professionalText = Color(hex: "0D47A1")      // メインテキスト
-    static let professionalTextSecondary = Color(hex: "1565C0") // セカンダリテキスト
-    static let professionalCard = Color(hex: "F2F8FF")     // カード背景（ライトブルー）
-    static let professionalBorder = Color(hex: "BBDEFB")    // ボーダー
+// MARK: - ログ機能
+@MainActor
+class Logger {
+    static let shared = Logger()
+    private let logFileURL: URL
+    
+    private init() {
+        // プロジェクト内のlogsディレクトリにログファイルを保存
+        let projectPath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let logsDirectory = projectPath.appendingPathComponent("logs")
+        
+        // logsディレクトリが存在しない場合は作成
+        if !FileManager.default.fileExists(atPath: logsDirectory.path) {
+            try? FileManager.default.createDirectory(at: logsDirectory, withIntermediateDirectories: true)
+        }
+        
+        logFileURL = logsDirectory.appendingPathComponent("clipboard_log.txt")
+    }
+    
+    func log(_ message: String) {
+        let timestamp = DateFormatter().string(from: Date())
+        let logMessage = "[\(timestamp)] \(message)\n"
+        
+        if let data = logMessage.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: logFileURL.path) {
+                if let fileHandle = try? FileHandle(forWritingTo: logFileURL) {
+                    fileHandle.seekToEndOfFile()
+                    fileHandle.write(data)
+                    fileHandle.closeFile()
+                }
+            } else {
+                try? data.write(to: logFileURL)
+            }
+        }
+        
+        // コンソールにも出力
+        print(logMessage.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
 }
 
 /// 履歴管理画面のSwiftUIビュー
@@ -21,54 +48,27 @@ struct HistoryView: View {
     @State private var searchText = ""
     @State private var selectedTab = 0
     @State private var showingClearAlert = false
-    @State private var selectedCategory: UUID? = nil
-    @State private var showingCategoryManager = false
     @State private var selectedFavoriteFolder: UUID? = nil
     @State private var showingFavoriteFolderManager = false
+    @State private var showingSnippetRegistration = false
     
     var body: some View {
         VStack(spacing: 0) {
             // アニメーション付きタブビュー
             Picker("表示モード", selection: $selectedTab) {
                 Text("履歴").tag(0)
-                Text("お気に入り").tag(1)
+                Text("スニペット").tag(1)
             }
             .pickerStyle(SegmentedPickerStyle())
             .padding()
             .animation(.easeInOut(duration: 0.3), value: selectedTab)
             
-            // 改善された検索バー
+            // 共通検索バー
             HStack {
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 14))
-                    
-                    TextField("検索...", text: $searchText)
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .font(.system(size: 14))
-                    
-                    if !searchText.isEmpty {
-                        Button(action: { searchText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 14))
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.professionalBackgroundLight)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.professionalBorder, lineWidth: 1)
-                )
-                .cornerRadius(8)
-                
+                SearchBar(text: $searchText, placeholder: "検索...")
                 Spacer()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, ProfessionalBlueTheme.Spacing.xl)
             
             // シンプルなコンテンツエリア
             Group {
@@ -83,114 +83,23 @@ struct HistoryView: View {
             .animation(.easeInOut(duration: 0.2), value: selectedTab)
         }
         .frame(minWidth: 800, minHeight: 600)
-        .background(Color.professionalBackground)
+        .background(ProfessionalBlueTheme.Colors.background)
     }
     
     // MARK: - 履歴リストビュー
     private var historyListView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // ヘッダー
-            HStack {
-                Text("コピー履歴 (\(filteredHistoryItems.count)件)")
-                    .font(.headline)
-                    .foregroundColor(Color.professionalText)
-                
-                Spacer()
-                
-                HStack(spacing: 12) {
-                    // カテゴリフィルター
-                    Menu {
-                        Button("すべてのカテゴリ") {
-                            selectedCategory = nil
-                        }
-                        
-                        ForEach(dataManager.categories) { category in
-                            Button(category.name) {
-                                selectedCategory = category.id
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "tag.fill")
-                                .font(.system(size: 12))
-                            Text(selectedCategory == nil ? "すべて" : dataManager.getCategory(by: selectedCategory!).name)
-                                .font(.system(size: 13))
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.blue.opacity(0.1))
-                        .foregroundColor(.blue)
-                        .cornerRadius(6)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    Button("カテゴリ管理") {
-                        showingCategoryManager = true
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.professionalBlueLight)
-                    .foregroundColor(Color.professionalBlueDark)
-                    .cornerRadius(6)
-                    .font(.system(size: 13))
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    Button("履歴をクリア") {
-                        showingClearAlert = true
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.red.opacity(0.1))
-                    .foregroundColor(.red)
-                    .cornerRadius(6)
-                    .font(.system(size: 13))
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
-            .padding()
+            HistoryHeaderView(
+                title: "コピー履歴 (\(filteredHistoryItems.count)件)",
+                onClearHistory: { showingClearAlert = true }
+            )
             
             Divider()
             
-            // カード形式のリスト
-            if filteredHistoryItems.isEmpty {
-                emptyStateView(message: searchText.isEmpty ? "履歴がありません" : "検索結果がありません")
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(Array(filteredHistoryItems.enumerated()), id: \.element.id) { index, item in
-                            HistoryItemRow(
-                                item: item,
-                                category: dataManager.getCategory(by: item.categoryId),
-                                onCopy: { copyToClipboard(item.content) },
-                                onAddToFavorites: { dataManager.addToFavorites(item) },
-                                onDelete: { dataManager.removeFromHistory(item) },
-                                onChangeCategory: { categoryId in
-                                    dataManager.changeItemCategory(item, to: categoryId)
-                                }
-                            )
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                    .background(Color.professionalCard)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.professionalBorder, lineWidth: 1)
-                    )
-                    .cornerRadius(12)
-                    .shadow(color: Color.professionalBlue.opacity(0.1), radius: 6, x: 0, y: 3)
-                            .transition(.asymmetric(
-                                insertion: .scale.combined(with: .opacity),
-                                removal: .scale.combined(with: .opacity)
-                            ))
-                            .animation(.easeInOut(duration: 0.3).delay(Double(index) * 0.05), value: filteredHistoryItems.count)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
-                }
-            }
-        }
-        .sheet(isPresented: $showingCategoryManager) {
-            CategoryManagerView(dataManager: dataManager)
+            HistoryListView(
+                items: filteredHistoryItems,
+                dataManager: dataManager
+            )
         }
         .alert("履歴をクリア", isPresented: $showingClearAlert) {
             Button("キャンセル", role: .cancel) { }
@@ -205,96 +114,29 @@ struct HistoryView: View {
     // MARK: - お気に入りリストビュー
     private var favoritesListView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // ヘッダー
-            HStack {
-                Text("お気に入り (\(filteredFavoriteItems.count)件)")
-                    .font(.headline)
-                    .foregroundColor(Color.professionalText)
-                
-                Spacer()
-                
-                HStack(spacing: 12) {
-                    // お気に入りフォルダフィルター
-                    Menu {
-                        Button("すべてのフォルダ") {
-                            selectedFavoriteFolder = nil
-                        }
-                        
-                        ForEach(dataManager.favoriteFolders) { folder in
-                            Button(folder.name) {
-                                selectedFavoriteFolder = folder.id
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "folder.fill")
-                                .font(.system(size: 12))
-                            Text(selectedFavoriteFolder == nil ? "すべて" : dataManager.getFavoriteFolder(by: selectedFavoriteFolder!).name)
-                                .font(.system(size: 13))
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.orange.opacity(0.1))
-                        .foregroundColor(.orange)
-                        .cornerRadius(6)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    Button("フォルダ管理") {
-                        showingFavoriteFolderManager = true
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.professionalBlueLight)
-                    .foregroundColor(Color.professionalBlueDark)
-                    .cornerRadius(6)
-                    .font(.system(size: 13))
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
-            .padding()
+            FavoritesHeaderView(
+                title: "スニペット (\(filteredFavoriteItems.count)件)",
+                selectedFolder: $selectedFavoriteFolder,
+                folders: dataManager.favoriteFolders,
+                onFolderManager: { showingFavoriteFolderManager = true },
+                onAddSnippet: { showingSnippetRegistration = true }
+            )
             
             Divider()
             
-            // カード形式のリスト
-            if filteredFavoriteItems.isEmpty {
-                emptyStateView(message: searchText.isEmpty ? "お気に入りがありません" : "検索結果がありません")
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(Array(filteredFavoriteItems.enumerated()), id: \.element.id) { index, item in
-                            FavoriteItemRow(
-                                item: item,
-                                folder: dataManager.getFavoriteFolder(by: item.favoriteFolderId ?? FavoriteFolder.defaultFolder.id),
-                                onCopy: { copyToClipboard(item.content) },
-                                onDelete: { dataManager.removeFromFavorites(item) },
-                                onChangeFolder: { folderId in
-                                    dataManager.changeFavoriteFolder(item, to: folderId)
-                                }
-                            )
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                    .background(Color.professionalCard)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.professionalBorder, lineWidth: 1)
-                    )
-                    .cornerRadius(12)
-                    .shadow(color: Color.professionalBlue.opacity(0.1), radius: 6, x: 0, y: 3)
-                            .transition(.asymmetric(
-                                insertion: .scale.combined(with: .opacity),
-                                removal: .scale.combined(with: .opacity)
-                            ))
-                            .animation(.easeInOut(duration: 0.3).delay(Double(index) * 0.05), value: filteredFavoriteItems.count)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
-                }
-            }
+            FavoritesListView(
+                items: filteredFavoriteItems,
+                dataManager: dataManager
+            )
         }
         .sheet(isPresented: $showingFavoriteFolderManager) {
             FavoriteFolderManagerView(dataManager: dataManager)
+        }
+        .sheet(isPresented: $showingSnippetRegistration) {
+            SnippetRegistrationView(
+                dataManager: dataManager,
+                onDismiss: { showingSnippetRegistration = false }
+            )
         }
     }
     
@@ -314,7 +156,7 @@ struct HistoryView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                Text("履歴からお気に入りに追加できます")
+                Text("履歴からスニペットに追加できます")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -325,11 +167,6 @@ struct HistoryView: View {
     // MARK: - フィルタリング
     private var filteredHistoryItems: [ClipboardItem] {
         var items = dataManager.historyItems
-        
-        // カテゴリフィルター
-        if let selectedCategory = selectedCategory {
-            items = items.filter { $0.categoryId == selectedCategory }
-        }
         
         // 検索フィルター
         if !searchText.isEmpty {
@@ -412,7 +249,7 @@ struct HistoryItemRow: View {
                     Image(systemName: "heart")
                 }
                 .buttonStyle(PlainButtonStyle())
-                .help("お気に入りに追加")
+                .help("スニペットに追加")
                 
                 Menu {
                     Text("カテゴリを変更")
@@ -442,7 +279,8 @@ struct HistoryItemRow: View {
 // MARK: - お気に入りアイテム行
 struct FavoriteItemRow: View {
     let item: ClipboardItem
-    let folder: FavoriteFolder
+    let folder: FavoriteFolder?
+    let folders: [FavoriteFolder]
     let onCopy: () -> Void
     let onDelete: () -> Void
     let onChangeFolder: (UUID) -> Void
@@ -457,19 +295,21 @@ struct FavoriteItemRow: View {
                     
                     Spacer()
                     
-                    // フォルダバッジ
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(Color(hex: folder.color))
-                            .frame(width: 8, height: 8)
-                        Text(folder.name)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                    // フォルダバッジ（フォルダが存在する場合のみ表示）
+                    if let folder = folder {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color(hex: folder.color))
+                                .frame(width: 8, height: 8)
+                            Text(folder.name)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(4)
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(4)
                 }
                 
                 Text(item.timestamp, style: .time)
@@ -482,7 +322,7 @@ struct FavoriteItemRow: View {
             VStack(spacing: 4) {
                 // フォルダ変更メニュー
                 Menu {
-                    ForEach([FavoriteFolder.defaultFolder]) { folder in
+                    ForEach(folders) { folder in
                         Button(folder.name) {
                             onChangeFolder(folder.id)
                         }
@@ -603,7 +443,7 @@ struct FavoriteFolderManagerView: View {
         VStack(spacing: 0) {
             // ヘッダー
             HStack {
-                Text("お気に入りフォルダ管理")
+                Text("スニペットフォルダ管理")
                     .font(.title2)
                     .fontWeight(.semibold)
                 
@@ -712,47 +552,693 @@ struct FavoriteFolderManagerView: View {
     }
 }
 
-// MARK: - Color拡張
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (1, 1, 1, 0)
-        }
-        
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue:  Double(b) / 255,
-            opacity: Double(a) / 255
-        )
-    }
+
+// MARK: - ヘッダービューコンポーネント
+struct HistoryHeaderView: View {
+    let title: String
+    let onClearHistory: () -> Void
     
-    func toHex() -> String {
-        let nsColor = NSColor(self)
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
-        
-        nsColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        
-        let rgb: Int = (Int)(red * 255) << 16 | (Int)(green * 255) << 8 | (Int)(blue * 255) << 0
-        
-        return String(format: "#%06x", rgb)
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(ProfessionalBlueTheme.Colors.text)
+            
+            Spacer()
+            
+            Button("履歴をクリア") {
+                onClearHistory()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.red.opacity(0.1))
+            .foregroundColor(.red)
+            .cornerRadius(6)
+            .font(.system(size: 13))
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding()
     }
 }
+
+// MARK: - シンプル履歴アイテム行コンポーネント
+struct SimpleHistoryItemRow: View {
+    let item: ClipboardItem
+    let onCopy: () -> Void
+    let onAddToFavorites: () -> Void
+    let onDelete: () -> Void
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.content)
+                    .font(.body)
+                    .lineLimit(3)
+                
+                Text(item.displayTimestamp)
+                    .font(.caption)
+                    .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Button(action: onCopy) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 14))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.primary)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help("コピー")
+                
+                Button(action: onAddToFavorites) {
+                    Image(systemName: item.isFavorite ? "star.fill" : "star")
+                        .font(.system(size: 14))
+                        .foregroundColor(item.isFavorite ? .yellow : ProfessionalBlueTheme.Colors.textMuted)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help(item.isFavorite ? "スニペットから削除" : "スニペットに追加")
+                
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14))
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help("削除")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(ProfessionalBlueTheme.Colors.card)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+        )
+        .cornerRadius(12)
+        .shadow(color: ProfessionalBlueTheme.Colors.shadow.opacity(0.1), radius: 6, x: 0, y: 3)
+    }
+}
+
+// MARK: - 履歴リストビューコンポーネント
+struct HistoryListView: View {
+    let items: [ClipboardItem]
+    let dataManager: ClipboardDataManager
+    
+    var body: some View {
+        if items.isEmpty {
+            VStack(spacing: 16) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 48))
+                    .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                
+                Text("履歴がありません")
+                    .font(.system(size: 16))
+                    .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        SimpleHistoryItemRow(
+                            item: item,
+                            onCopy: {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(item.content, forType: .string)
+                            },
+                            onAddToFavorites: {
+                                dataManager.addToFavorites(item)
+                            },
+                            onDelete: {
+                                dataManager.removeFromHistory(item)
+                            }
+                        )
+                        .transition(.asymmetric(
+                            insertion: .scale.combined(with: .opacity),
+                            removal: .scale.combined(with: .opacity)
+                        ))
+                        .animation(.easeInOut(duration: 0.3).delay(Double(index) * 0.05), value: items.count)
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+}
+
+// MARK: - お気に入りヘッダービューコンポーネント
+struct FavoritesHeaderView: View {
+    let title: String
+    @Binding var selectedFolder: UUID?
+    let folders: [FavoriteFolder]
+    let onFolderManager: () -> Void
+    let onAddSnippet: () -> Void
+    
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(ProfessionalBlueTheme.Colors.text)
+            
+            Spacer()
+            
+            HStack(spacing: 12) {
+                // スニペット追加ボタン
+                Button(action: onAddSnippet) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12))
+                        Text("スニペット追加")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(ProfessionalBlueTheme.Colors.primary)
+                    .foregroundColor(.white)
+                    .cornerRadius(6)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // フォルダフィルター
+                Menu {
+                    Button("すべてのフォルダ") {
+                        selectedFolder = nil
+                    }
+                    
+                    ForEach(folders) { folder in
+                        Button(folder.name) {
+                            selectedFolder = folder.id
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 12))
+                        Text(selectedFolder == nil ? "すべて" : folders.first(where: { $0.id == selectedFolder })?.name ?? "すべて")
+                            .font(.system(size: 13))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.orange.opacity(0.1))
+                    .foregroundColor(.orange)
+                    .cornerRadius(6)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Button("フォルダ管理") {
+                    onFolderManager()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(ProfessionalBlueTheme.Colors.primaryLight)
+                .foregroundColor(ProfessionalBlueTheme.Colors.primaryDark)
+                .cornerRadius(6)
+                .font(.system(size: 13))
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding()
+    }
+}
+
+// MARK: - お気に入りリストビューコンポーネント（アコーディオン形式）
+struct FavoritesListView: View {
+    let items: [ClipboardItem]
+    let dataManager: ClipboardDataManager
+    @State private var expandedFolders: Set<UUID> = []
+    
+    var body: some View {
+        if items.isEmpty {
+            VStack(spacing: 16) {
+                Image(systemName: "star")
+                    .font(.system(size: 48))
+                    .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                
+                Text("スニペットがありません")
+                    .font(.system(size: 16))
+                    .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    // フォルダ別のスニペットを表示（空のフォルダも含む）
+                    ForEach(dataManager.favoriteFolders) { folder in
+                        let folderItems = items.filter { $0.favoriteFolderId == folder.id }
+                        let _ = Logger.shared.log("フォルダ '\(folder.name)' (ID: \(folder.id.uuidString)) のアイテム数: \(folderItems.count)")
+                        
+                        FolderAccordionView(
+                            folder: folder,
+                            items: folderItems,
+                            isExpanded: expandedFolders.contains(folder.id),
+                            onToggle: {
+                                if expandedFolders.contains(folder.id) {
+                                    expandedFolders.remove(folder.id)
+                                } else {
+                                    expandedFolders.insert(folder.id)
+                                }
+                            },
+                            dataManager: dataManager
+                        )
+                    }
+                    
+                    // フォルダなしのスニペットを直接表示
+                    let unassignedItems = items.filter { $0.favoriteFolderId == nil }
+                    let _ = Logger.shared.log("フォルダなしアイテム数: \(unassignedItems.count)")
+                    if !unassignedItems.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            // ヘッダー
+                            HStack {
+                                Image(systemName: "star")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(ProfessionalBlueTheme.Colors.warning)
+                                
+                                Text("フォルダなし")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                                
+                                Spacer()
+                                
+                                Text("\(unassignedItems.count)件")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(ProfessionalBlueTheme.Colors.backgroundLight)
+                                    .cornerRadius(8)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(ProfessionalBlueTheme.Colors.card)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+                            )
+                            .cornerRadius(8)
+                            
+                            // スニペット一覧（直接表示）
+                            VStack(spacing: 4) {
+                                ForEach(unassignedItems) { item in
+                                    SnippetItemRow(
+                                        item: item,
+                                        onCopy: {
+                                            NSPasteboard.general.clearContents()
+                                            NSPasteboard.general.setString(item.content, forType: .string)
+                                        },
+                                        onDelete: {
+                                            dataManager.removeFromFavorites(item)
+                                        },
+                                        onEdit: { item in
+                                            // 編集機能は後で実装
+                                        }
+                                    )
+                                    .padding(.leading, 20)
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+}
+
+// MARK: - フォルダアコーディオンビュー
+struct FolderAccordionView: View {
+    let folder: FavoriteFolder
+    let items: [ClipboardItem]
+    let isExpanded: Bool
+    let onToggle: () -> Void
+    let dataManager: ClipboardDataManager
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // フォルダヘッダー
+            Button(action: onToggle) {
+                HStack(spacing: 8) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                        .animation(.easeInOut(duration: 0.2), value: isExpanded)
+                    
+                    Circle()
+                        .fill(Color(hex: folder.color))
+                        .frame(width: 12, height: 12)
+                    
+                    Text(folder.name)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                    
+                    Spacer()
+                    
+                    Text("\(items.count)件")
+                        .font(.system(size: 12))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(ProfessionalBlueTheme.Colors.backgroundLight)
+                        .cornerRadius(8)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(ProfessionalBlueTheme.Colors.card)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+                )
+                .cornerRadius(8)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // フォルダ内容（アコーディオン）
+            if isExpanded {
+                VStack(spacing: 4) {
+                    ForEach(items) { item in
+                        SnippetItemRow(
+                            item: item,
+                            onCopy: {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(item.content, forType: .string)
+                            },
+                            onDelete: {
+                                dataManager.removeFromFavorites(item)
+                            },
+                            onEdit: { item in
+                                // 編集機能は後で実装
+                            }
+                        )
+                        .padding(.leading, 20)
+                    }
+                }
+                .padding(.top, 4)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .top)),
+                    removal: .opacity.combined(with: .move(edge: .top))
+                ))
+            }
+        }
+    }
+}
+
+// MARK: - スニペット登録ビュー
+struct SnippetRegistrationView: View {
+    @State private var content: String = ""
+    @State private var description: String = ""
+    @State private var selectedFolderId: UUID? = nil
+    @State private var showingFolderManager = false
+    
+    let dataManager: ClipboardDataManager
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            let _ = Logger.shared.log("スニペット登録ビュー表示 - 利用可能なフォルダ数: \(dataManager.favoriteFolders.count)")
+            // ヘッダー
+            HStack {
+                Text("新しいスニペットを登録")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                
+                Spacer()
+                
+                Button("キャンセル") {
+                    onDismiss()
+                }
+                .buttonStyle(PlainButtonStyle())
+                .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+            }
+            
+            // 入力フォーム
+            VStack(spacing: 12) {
+                // 説明フィールド
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("説明（任意）")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                    
+                    TextField("スニペットの説明を入力", text: $description)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .font(.system(size: 14))
+                }
+                
+                // 内容フィールド
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("内容 *")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                    
+                    TextEditor(text: $content)
+                        .font(.system(size: 14))
+                        .frame(minHeight: 80)
+                        .padding(8)
+                        .background(Color(NSColor.textBackgroundColor))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+                        )
+                        .cornerRadius(6)
+                }
+                
+                // フォルダ選択
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("フォルダ")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                    
+                    VStack(spacing: 8) {
+                        Picker("フォルダ選択", selection: $selectedFolderId) {
+                            Text("フォルダなし").tag(nil as UUID?)
+                            ForEach(dataManager.favoriteFolders) { folder in
+                                Text(folder.name).tag(folder.id as UUID?)
+                            }
+                        }
+                        .pickerStyle(MenuPickerStyle())
+                        .onChange(of: selectedFolderId) { newValue in
+                            Logger.shared.log("フォルダ選択変更: \(newValue?.uuidString ?? "nil")")
+                        }
+                        
+                        Button("フォルダ管理") {
+                            showingFolderManager = true
+                        }
+                        .font(.system(size: 12))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.primary)
+                    }
+                }
+            }
+            
+            // ボタン
+            HStack(spacing: 12) {
+                Button("キャンセル") {
+                    onDismiss()
+                }
+                .buttonStyle(PlainButtonStyle())
+                .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                
+                Spacer()
+                
+                Button("登録") {
+                    if !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Logger.shared.log("登録時のselectedFolderId: \(selectedFolderId?.uuidString ?? "nil")")
+                        let newItem = ClipboardItem(
+                            content: content.trimmingCharacters(in: .whitespacesAndNewlines),
+                            favoriteFolderId: selectedFolderId,
+                            description: description.trimmingCharacters(in: .whitespacesAndNewlines)
+                        )
+                        Logger.shared.log("作成されたアイテムのfavoriteFolderId: \(newItem.favoriteFolderId?.uuidString ?? "nil")")
+                        dataManager.addToFavorites(newItem, to: selectedFolderId)
+                        onDismiss()
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                .background(content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 
+                           ProfessionalBlueTheme.Colors.textMuted : ProfessionalBlueTheme.Colors.primary)
+                .cornerRadius(6)
+                .disabled(content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .background(ProfessionalBlueTheme.Colors.background)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+        )
+        .cornerRadius(12)
+        .sheet(isPresented: $showingFolderManager) {
+            FavoriteFolderManagerView(dataManager: dataManager)
+        }
+    }
+}
+
+// MARK: - スニペットアイテム行
+struct SnippetItemRow: View {
+    let item: ClipboardItem
+    let onCopy: () -> Void
+    let onDelete: () -> Void
+    let onEdit: (ClipboardItem) -> Void
+    @State private var isEditing = false
+    @State private var editedContent = ""
+    @State private var editedDescription = ""
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if isEditing {
+                // 編集モード
+                VStack(alignment: .leading, spacing: 8) {
+                    // 説明編集
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("説明")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                        
+                        TextField("説明を入力", text: $editedDescription)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .font(.system(size: 12))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(ProfessionalBlueTheme.Colors.backgroundLight)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+                            )
+                            .cornerRadius(4)
+                    }
+                    
+                    // コンテンツ編集
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("内容")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                        
+                        TextField("内容を入力", text: $editedContent, axis: .vertical)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .font(.system(size: 12))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(ProfessionalBlueTheme.Colors.backgroundLight)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+                            )
+                            .cornerRadius(4)
+                            .lineLimit(3...6)
+                    }
+                    
+                    // 編集ボタン
+                    HStack(spacing: 8) {
+                        Button("保存") {
+                            // 編集内容を保存
+                            isEditing = false
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .font(.system(size: 12))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                        .background(ProfessionalBlueTheme.Colors.primary)
+                        .cornerRadius(4)
+                        
+                        Button("キャンセル") {
+                            isEditing = false
+                            editedContent = item.content
+                            editedDescription = item.description
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .font(.system(size: 12))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                        .background(ProfessionalBlueTheme.Colors.backgroundLight)
+                        .cornerRadius(4)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(ProfessionalBlueTheme.Colors.card)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(ProfessionalBlueTheme.Colors.primary, lineWidth: 1)
+                )
+                .cornerRadius(6)
+            } else {
+                // 表示モード
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        // 説明（あれば表示）
+                        if !item.description.isEmpty {
+                            Text(item.description)
+                                .font(.system(size: 12))
+                                .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                                .lineLimit(2)
+                        }
+                        
+                        // コンテンツ
+                        Text(item.content)
+                            .font(.system(size: 14))
+                            .lineLimit(2)
+                        
+                        // タイムスタンプ
+                        Text(item.timestamp, style: .time)
+                            .font(.system(size: 10))
+                            .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                    }
+                    
+                    Spacer()
+                    
+                    HStack(spacing: 6) {
+                        Button(action: onCopy) {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 12))
+                                .foregroundColor(ProfessionalBlueTheme.Colors.primary)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("コピー")
+                        
+                        Button(action: {
+                            editedContent = item.content
+                            editedDescription = item.description
+                            isEditing = true
+                        }) {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 12))
+                                .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("編集")
+                        
+                        Button(action: onDelete) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 12))
+                                .foregroundColor(.red)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help("削除")
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(ProfessionalBlueTheme.Colors.backgroundLight)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 0.5)
+                )
+                .cornerRadius(6)
+            }
+        }
+        .onAppear {
+            editedContent = item.content
+            editedDescription = item.description
+        }
+    }
+}
+
 
 // MARK: - プレビュー
 struct HistoryView_Previews: PreviewProvider {
