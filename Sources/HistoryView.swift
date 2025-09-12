@@ -1,6 +1,20 @@
 import SwiftUI
 import AppKit
 
+// MARK: - プロフェッショナル・ブルーテーマ
+extension Color {
+    // プロフェッショナル・ブルーテーマのカラーパレット
+    static let professionalBlue = Color(hex: "1976D2")      // メインアクセント
+    static let professionalBlueDark = Color(hex: "0D47A1")  // ダークアクセント
+    static let professionalBlueLight = Color(hex: "BBDEFB") // ライトアクセント
+    static let professionalBackground = Color(hex: "E3F2FD") // ベース背景
+    static let professionalBackgroundLight = Color(hex: "F8FBFF") // ライト背景
+    static let professionalText = Color(hex: "0D47A1")      // メインテキスト
+    static let professionalTextSecondary = Color(hex: "1565C0") // セカンダリテキスト
+    static let professionalCard = Color(hex: "F2F8FF")     // カード背景（ライトブルー）
+    static let professionalBorder = Color(hex: "BBDEFB")    // ボーダー
+}
+
 /// 履歴管理画面のSwiftUIビュー
 struct HistoryView: View {
     @ObservedObject var dataManager: ClipboardDataManager
@@ -45,7 +59,11 @@ struct HistoryView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.gray.opacity(0.1))
+                .background(Color.professionalBackgroundLight)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.professionalBorder, lineWidth: 1)
+                )
                 .cornerRadius(8)
                 
                 Spacer()
@@ -65,7 +83,7 @@ struct HistoryView: View {
             .animation(.easeInOut(duration: 0.2), value: selectedTab)
         }
         .frame(minWidth: 800, minHeight: 600)
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Color.professionalBackground)
     }
     
     // MARK: - 履歴リストビュー
@@ -75,6 +93,7 @@ struct HistoryView: View {
             HStack {
                 Text("コピー履歴 (\(filteredHistoryItems.count)件)")
                     .font(.headline)
+                    .foregroundColor(Color.professionalText)
                 
                 Spacer()
                 
@@ -110,8 +129,8 @@ struct HistoryView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color.gray.opacity(0.1))
-                    .foregroundColor(.primary)
+                    .background(Color.professionalBlueLight)
+                    .foregroundColor(Color.professionalBlueDark)
                     .cornerRadius(6)
                     .font(.system(size: 13))
                     .buttonStyle(PlainButtonStyle())
@@ -151,9 +170,13 @@ struct HistoryView: View {
                             )
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(Color.white)
-                            .cornerRadius(12)
-                            .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
+                    .background(Color.professionalCard)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.professionalBorder, lineWidth: 1)
+                    )
+                    .cornerRadius(12)
+                    .shadow(color: Color.professionalBlue.opacity(0.1), radius: 6, x: 0, y: 3)
                             .transition(.asymmetric(
                                 insertion: .scale.combined(with: .opacity),
                                 removal: .scale.combined(with: .opacity)
@@ -186,6 +209,7 @@ struct HistoryView: View {
             HStack {
                 Text("お気に入り (\(filteredFavoriteItems.count)件)")
                     .font(.headline)
+                    .foregroundColor(Color.professionalText)
                 
                 Spacer()
                 
@@ -221,8 +245,8 @@ struct HistoryView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color.gray.opacity(0.1))
-                    .foregroundColor(.primary)
+                    .background(Color.professionalBlueLight)
+                    .foregroundColor(Color.professionalBlueDark)
                     .cornerRadius(6)
                     .font(.system(size: 13))
                     .buttonStyle(PlainButtonStyle())
@@ -250,9 +274,13 @@ struct HistoryView: View {
                             )
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(Color.white)
-                            .cornerRadius(12)
-                            .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
+                    .background(Color.professionalCard)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.professionalBorder, lineWidth: 1)
+                    )
+                    .cornerRadius(12)
+                    .shadow(color: Color.professionalBlue.opacity(0.1), radius: 6, x: 0, y: 3)
                             .transition(.asymmetric(
                                 insertion: .scale.combined(with: .opacity),
                                 removal: .scale.combined(with: .opacity)
