@@ -43,16 +43,7 @@ struct FavoriteFolder: Codable, Identifiable, Equatable {
         self.createdAt = Date()
     }
     
-    // デフォルトフォルダ
-    static let defaultFolder = FavoriteFolder(name: "お気に入り", color: "#FF6B6B", isDefault: true)
-    
-    // プリセットフォルダ
-    static let presetFolders: [FavoriteFolder] = [
-        FavoriteFolder(name: "お気に入り", color: "#FF6B6B", isDefault: true),
-        FavoriteFolder(name: "よく使う", color: "#4ECDC4", isDefault: true),
-        FavoriteFolder(name: "重要", color: "#45B7D1", isDefault: true),
-        FavoriteFolder(name: "一時保存", color: "#96CEB4", isDefault: true)
-    ]
+    // デフォルトフォルダは削除（ユーザーが作成したフォルダのみ使用）
 }
 
 /// クリップボードアイテムのデータモデル
@@ -63,14 +54,16 @@ struct ClipboardItem: Codable, Identifiable, Equatable {
     let isFavorite: Bool
     let categoryId: UUID // カテゴリのID
     let favoriteFolderId: UUID? // お気に入りフォルダのID（お気に入りの場合のみ）
+    let description: String // 説明
     
-    init(content: String, isFavorite: Bool = false, categoryId: UUID? = nil, favoriteFolderId: UUID? = nil) {
+    init(content: String, isFavorite: Bool = false, categoryId: UUID? = nil, favoriteFolderId: UUID? = nil, description: String = "") {
         self.id = UUID()
         self.content = content
         self.timestamp = Date()
         self.isFavorite = isFavorite
         self.categoryId = categoryId ?? Category.defaultCategory.id
         self.favoriteFolderId = favoriteFolderId
+        self.description = description
     }
     
     // カスタムデコーダー（既存データとの互換性のため）
@@ -87,11 +80,14 @@ struct ClipboardItem: Codable, Identifiable, Equatable {
         
         // favoriteFolderIdが存在しない場合はnilを使用
         favoriteFolderId = try container.decodeIfPresent(UUID.self, forKey: .favoriteFolderId)
+        
+        // descriptionが存在しない場合は空文字を使用
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
     }
     
     // コーディングキー
     private enum CodingKeys: String, CodingKey {
-        case id, content, timestamp, isFavorite, categoryId, favoriteFolderId
+        case id, content, timestamp, isFavorite, categoryId, favoriteFolderId, description
     }
     
     /// 表示用の短縮テキスト（長すぎる場合は省略）
@@ -140,10 +136,17 @@ class ClipboardDataManager: ObservableObject {
     
     /// デフォルトお気に入りフォルダを初期化
     private func initializeDefaultFavoriteFolders() {
-        if favoriteFolders.isEmpty {
-            favoriteFolders = FavoriteFolder.presetFolders
-            saveData()
+        // 既存のデフォルトフォルダを削除
+        let defaultFolderIds = favoriteFolders.filter { $0.isDefault }.map { $0.id }
+        favoriteFolders.removeAll { $0.isDefault }
+        
+        // デフォルトフォルダのアイテムも削除
+        favoriteItems.removeAll { item in
+            guard let folderId = item.favoriteFolderId else { return false }
+            return defaultFolderIds.contains(folderId)
         }
+        
+        saveData()
     }
     
     /// 新しいクリップボードアイテムを履歴に追加
@@ -175,7 +178,7 @@ class ClipboardDataManager: ObservableObject {
                 content: item.content, 
                 isFavorite: true, 
                 categoryId: item.categoryId,
-                favoriteFolderId: folderId ?? FavoriteFolder.defaultFolder.id
+                favoriteFolderId: folderId
             )
             favoriteItems.append(favoriteItem)
             saveData()
@@ -325,14 +328,14 @@ class ClipboardDataManager: ObservableObject {
         guard !folder.isDefault else { return }
         
         // 削除するフォルダのアイテムをデフォルトフォルダに移動
-        let defaultFolderId = FavoriteFolder.defaultFolder.id
+        // デフォルトフォルダは使用しない
         for i in 0..<favoriteItems.count {
             if favoriteItems[i].favoriteFolderId == folder.id {
                 let updatedItem = ClipboardItem(
                     content: favoriteItems[i].content,
                     isFavorite: favoriteItems[i].isFavorite,
                     categoryId: favoriteItems[i].categoryId,
-                    favoriteFolderId: defaultFolderId
+                    favoriteFolderId: nil
                 )
                 favoriteItems[i] = updatedItem
             }
@@ -351,8 +354,8 @@ class ClipboardDataManager: ObservableObject {
     }
     
     /// お気に入りフォルダIDからフォルダを取得
-    func getFavoriteFolder(by id: UUID) -> FavoriteFolder {
-        return favoriteFolders.first { $0.id == id } ?? FavoriteFolder.defaultFolder
+    func getFavoriteFolder(by id: UUID) -> FavoriteFolder? {
+        return favoriteFolders.first { $0.id == id }
     }
     
     /// お気に入りフォルダ別にアイテムをグループ化
@@ -360,7 +363,7 @@ class ClipboardDataManager: ObservableObject {
         var grouped: [UUID: [ClipboardItem]] = [:]
         
         for item in favoriteItems {
-            let folderId = item.favoriteFolderId ?? FavoriteFolder.defaultFolder.id
+            guard let folderId = item.favoriteFolderId else { continue }
             if grouped[folderId] == nil {
                 grouped[folderId] = []
             }
