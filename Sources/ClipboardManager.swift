@@ -23,6 +23,15 @@ class ClipboardManager: ObservableObject {
     
     /// データ変更の監視を設定
     private func setupDataObserver() {
+        // 履歴アイテムの変更を監視
+        dataManager.$historyItems
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.updateMenuBar()
+                }
+            }
+            .store(in: &cancellables)
+        
         // お気に入りアイテムの変更を監視
         dataManager.$favoriteItems
             .sink { [weak self] _ in
@@ -73,27 +82,37 @@ class ClipboardManager: ObservableObject {
         let menu = NSMenu()
         
         // 履歴セクション（履歴 + スニペット）
-        let recentItems = dataManager.historyItems.prefix(5)
+        let recentItems = dataManager.historyItems.prefix(10)
         let snippetItems = dataManager.favoriteItems.prefix(10)
         
         if !recentItems.isEmpty || !snippetItems.isEmpty {
-            let historyTitle = NSMenuItem(title: "直近のコピー履歴", action: nil, keyEquivalent: "")
-            historyTitle.isEnabled = false
-            menu.addItem(historyTitle)
-            
-            // 最近の履歴アイテムを表示（最大5件）
-            for item in recentItems {
-                let menuItem = NSMenuItem(title: "  \(item.displayText)", action: #selector(copyToClipboard(_:)), keyEquivalent: "")
-                menuItem.target = self
-                menuItem.representedObject = item.content
-                menu.addItem(menuItem)
+            // 履歴をサブメニューで表示
+            if !recentItems.isEmpty {
+                let historyMenuItem = NSMenuItem(title: "📋 履歴", action: nil, keyEquivalent: "")
+                historyMenuItem.isEnabled = true
+                
+                // 履歴のサブメニューを作成
+                let historySubmenu = NSMenu()
+                for item in recentItems {
+                    let submenuItem = NSMenuItem(title: item.displayText, action: #selector(copyToClipboard(_:)), keyEquivalent: "")
+                    submenuItem.target = self
+                    submenuItem.representedObject = item.content
+                    historySubmenu.addItem(submenuItem)
+                }
+                
+                historyMenuItem.submenu = historySubmenu
+                menu.addItem(historyMenuItem)
+                
+                // 履歴とスニペットの間に区切り線を追加
+                menu.addItem(NSMenuItem.separator())
             }
             
-            // スニペットをフォルダ別に表示
+            // スニペットをフォルダ別に表示（サブメニュー構造）
             if !snippetItems.isEmpty {
-                menu.addItem(NSMenuItem.separator())
-                let snippetTitle = NSMenuItem(title: "  ⭐ スニペット", action: nil, keyEquivalent: "")
-                snippetTitle.isEnabled = false
+                // スニペット見出しを追加（空のアクションでクリック可能にする）
+                let snippetTitle = NSMenuItem(title: "スニペット", action: #selector(doNothing), keyEquivalent: "")
+                snippetTitle.target = self
+                snippetTitle.isEnabled = true
                 menu.addItem(snippetTitle)
                 
                 // フォルダ別にスニペットをグループ化
@@ -101,28 +120,10 @@ class ClipboardManager: ObservableObject {
                     item.favoriteFolderId
                 }
                 
-                // フォルダなしのスニペット（サブメニュー）
-                if let unassignedSnippets = snippetsByFolder[nil], !unassignedSnippets.isEmpty {
-                    let unassignedMenuItem = NSMenuItem(title: "    📁 フォルダなし", action: nil, keyEquivalent: "")
-                    unassignedMenuItem.isEnabled = true
-                    
-                    // サブメニューを作成
-                    let submenu = NSMenu()
-                    for item in unassignedSnippets.prefix(5) {
-                        let submenuItem = NSMenuItem(title: item.displayText, action: #selector(copyToClipboard(_:)), keyEquivalent: "")
-                        submenuItem.target = self
-                        submenuItem.representedObject = item.content
-                        submenu.addItem(submenuItem)
-                    }
-                    
-                    unassignedMenuItem.submenu = submenu
-                    menu.addItem(unassignedMenuItem)
-                }
-                
                 // フォルダ別のスニペット（サブメニュー）
                 for folder in dataManager.favoriteFolders {
                     if let folderSnippets = snippetsByFolder[folder.id], !folderSnippets.isEmpty {
-                        let folderMenuItem = NSMenuItem(title: "    📁 \(folder.name)", action: nil, keyEquivalent: "")
+                        let folderMenuItem = NSMenuItem(title: "📁 \(folder.name)", action: nil, keyEquivalent: "")
                         folderMenuItem.isEnabled = true
                         
                         // サブメニューを作成
@@ -146,7 +147,7 @@ class ClipboardManager: ObservableObject {
                 }
                 
                 if !orphanedSnippets.isEmpty {
-                    let orphanedMenuItem = NSMenuItem(title: "    📁 不明なフォルダ", action: nil, keyEquivalent: "")
+                    let orphanedMenuItem = NSMenuItem(title: "📁 不明なフォルダ", action: nil, keyEquivalent: "")
                     orphanedMenuItem.isEnabled = true
                     
                     // サブメニューを作成
@@ -161,6 +162,27 @@ class ClipboardManager: ObservableObject {
                     orphanedMenuItem.submenu = submenu
                     menu.addItem(orphanedMenuItem)
                 }
+                
+                // フォルダなしのスニペット（サブメニュー）- 一番下に配置
+                if let unassignedSnippets = snippetsByFolder[nil], !unassignedSnippets.isEmpty {
+                    let unassignedMenuItem = NSMenuItem(title: "📁 フォルダなし", action: nil, keyEquivalent: "")
+                    unassignedMenuItem.isEnabled = true
+                    
+                    // サブメニューを作成
+                    let submenu = NSMenu()
+                    for item in unassignedSnippets.prefix(5) {
+                        let submenuItem = NSMenuItem(title: item.displayText, action: #selector(copyToClipboard(_:)), keyEquivalent: "")
+                        submenuItem.target = self
+                        submenuItem.representedObject = item.content
+                        submenu.addItem(submenuItem)
+                    }
+                    
+                    unassignedMenuItem.submenu = submenu
+                    menu.addItem(unassignedMenuItem)
+                }
+                
+                // スニペットセクションの区切り線を追加
+                menu.addItem(NSMenuItem.separator())
             }
             
             menu.addItem(NSMenuItem.separator())
@@ -170,6 +192,9 @@ class ClipboardManager: ObservableObject {
         let manageMenuItem = NSMenuItem(title: "⚙️ 履歴を管理...", action: #selector(openHistoryWindow), keyEquivalent: "")
         manageMenuItem.target = self
         menu.addItem(manageMenuItem)
+        
+        // 履歴を管理と終了の間に区切り線を追加
+        menu.addItem(NSMenuItem.separator())
         
         // 終了メニュー
         let quitMenuItem = NSMenuItem(title: "🚪 終了", action: #selector(quitApplication), keyEquivalent: "q")
@@ -201,6 +226,11 @@ class ClipboardManager: ObservableObject {
     /// アプリケーションを終了
     @objc private func quitApplication() {
         NSApp.terminate(nil)
+    }
+    
+    /// 何もしないアクション（スニペット見出し用）
+    @objc private func doNothing() {
+        // 何もしない
     }
     
     /// クリップボード監視を開始
