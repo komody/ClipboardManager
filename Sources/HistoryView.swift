@@ -619,23 +619,19 @@ struct SimpleHistoryItemRow: View {
     let onDelete: () -> Void
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(item.content)
-                    .font(.body)
-                    .lineLimit(3)
-                
-                Text(item.displayTimestamp)
-                    .font(.caption)
-                    .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                    .font(.system(size: 12))
+                    .lineLimit(2)
             }
             
             Spacer()
             
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Button(action: onCopy) {
                     Image(systemName: "doc.on.doc")
-                        .font(.system(size: 14))
+                        .font(.system(size: 12))
                         .foregroundColor(ProfessionalBlueTheme.Colors.primary)
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -643,7 +639,7 @@ struct SimpleHistoryItemRow: View {
                 
                 Button(action: onAddToFavorites) {
                     Image(systemName: item.isFavorite ? "star.fill" : "star")
-                        .font(.system(size: 14))
+                        .font(.system(size: 12))
                         .foregroundColor(item.isFavorite ? .yellow : ProfessionalBlueTheme.Colors.textMuted)
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -651,22 +647,22 @@ struct SimpleHistoryItemRow: View {
                 
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .font(.system(size: 14))
+                        .font(.system(size: 12))
                         .foregroundColor(.red)
                 }
                 .buttonStyle(PlainButtonStyle())
                 .help("削除")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(ProfessionalBlueTheme.Colors.card)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 8)
                 .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
         )
-        .cornerRadius(12)
-        .shadow(color: ProfessionalBlueTheme.Colors.shadow.opacity(0.1), radius: 6, x: 0, y: 3)
+        .cornerRadius(8)
+        .shadow(color: ProfessionalBlueTheme.Colors.shadow.opacity(0.05), radius: 2, x: 0, y: 1)
     }
 }
 
@@ -690,7 +686,7 @@ struct HistoryListView: View {
             .padding()
         } else {
             ScrollView {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: 6) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         SimpleHistoryItemRow(
                             item: item,
