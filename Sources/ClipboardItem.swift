@@ -53,7 +53,7 @@ struct ClipboardItem: Codable, Identifiable, Equatable {
     var timestamp: Date
     let isFavorite: Bool
     let categoryId: UUID // カテゴリのID
-    let favoriteFolderId: UUID? // お気に入りフォルダのID（お気に入りの場合のみ）
+    var favoriteFolderId: UUID? // お気に入りフォルダのID（お気に入りの場合のみ）
     let description: String // 説明
     
     init(content: String, isFavorite: Bool = false, categoryId: UUID? = nil, favoriteFolderId: UUID? = nil, description: String = "") {
@@ -343,6 +343,26 @@ class ClipboardDataManager: ObservableObject {
         updatedFolder.color = color
         favoriteFolders[index] = updatedFolder
         saveData()
+    }
+    
+    /// 孤立したスニペットをフォルダなしに移動
+    func fixOrphanedSnippets() {
+        let validFolderIds = Set(favoriteFolders.map { $0.id })
+        var hasChanges = false
+        
+        for i in 0..<favoriteItems.count {
+            if let folderId = favoriteItems[i].favoriteFolderId,
+               !validFolderIds.contains(folderId) {
+                print("[] 孤立したスニペットを修正: '\(favoriteItems[i].content)' (フォルダID: \(folderId))")
+                favoriteItems[i].favoriteFolderId = nil
+                hasChanges = true
+            }
+        }
+        
+        if hasChanges {
+            saveData()
+            print("[] 孤立したスニペットの修正完了")
+        }
     }
     
     /// お気に入りフォルダを削除
