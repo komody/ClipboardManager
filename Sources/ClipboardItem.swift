@@ -31,7 +31,7 @@ struct Category: Codable, Identifiable, Equatable {
 struct FavoriteFolder: Codable, Identifiable, Equatable {
     let id: UUID
     let name: String
-    let color: String // カラーコード
+    var color: String // カラーコード
     let isDefault: Bool // デフォルトフォルダかどうか
     let createdAt: Date
     
@@ -48,9 +48,9 @@ struct FavoriteFolder: Codable, Identifiable, Equatable {
 
 /// クリップボードアイテムのデータモデル
 struct ClipboardItem: Codable, Identifiable, Equatable {
-    let id: UUID
+    var id: UUID
     let content: String
-    let timestamp: Date
+    var timestamp: Date
     let isFavorite: Bool
     let categoryId: UUID // カテゴリのID
     let favoriteFolderId: UUID? // お気に入りフォルダのID（お気に入りの場合のみ）
@@ -178,7 +178,8 @@ class ClipboardDataManager: ObservableObject {
                 content: item.content, 
                 isFavorite: true, 
                 categoryId: item.categoryId,
-                favoriteFolderId: folderId
+                favoriteFolderId: folderId,
+                description: item.description
             )
             favoriteItems.append(favoriteItem)
             saveData()
@@ -199,9 +200,22 @@ class ClipboardDataManager: ObservableObject {
             content: item.content,
             isFavorite: item.isFavorite,
             categoryId: item.categoryId,
-            favoriteFolderId: folderId
+            favoriteFolderId: folderId,
+            description: item.description
         )
         favoriteItems[index] = updatedItem
+        saveData()
+    }
+    
+    /// お気に入りアイテムを編集
+    func updateFavoriteItem(_ item: ClipboardItem) {
+        guard let index = favoriteItems.firstIndex(where: { $0.id == item.id }) else { 
+            print("編集エラー: アイテムが見つかりません (ID: \(item.id))")
+            return 
+        }
+        print("編集前の説明: '\(favoriteItems[index].description)'")
+        favoriteItems[index] = item
+        print("編集後の説明: '\(favoriteItems[index].description)'")
         saveData()
     }
     
@@ -319,6 +333,15 @@ class ClipboardDataManager: ObservableObject {
     func addFavoriteFolder(name: String, color: String = "#FF6B6B") {
         let newFolder = FavoriteFolder(name: name, color: color, isDefault: false)
         favoriteFolders.append(newFolder)
+        saveData()
+    }
+    
+    /// お気に入りフォルダの色を更新
+    func updateFavoriteFolderColor(_ folder: FavoriteFolder, to color: String) {
+        guard let index = favoriteFolders.firstIndex(where: { $0.id == folder.id }) else { return }
+        var updatedFolder = favoriteFolders[index]
+        updatedFolder.color = color
+        favoriteFolders[index] = updatedFolder
         saveData()
     }
     
