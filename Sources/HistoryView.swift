@@ -2,6 +2,24 @@ import SwiftUI
 import AppKit
 import Foundation
 
+// MARK: - フォルダ色パレット
+struct FolderColorPalette {
+    static let colors: [(name: String, hex: String)] = [
+        ("青", "3B82F6"),      // ブルー
+        ("赤", "EF4444"),      // レッド
+        ("緑", "10B981"),      // グリーン
+        ("紫", "8B5CF6"),      // パープル
+        ("オレンジ", "F97316"), // オレンジ
+        ("ピンク", "EC4899"),   // ピンク
+        ("シアン", "06B6D4"),   // シアン
+        ("イエロー", "EAB308"), // イエロー
+        ("グレー", "6B7280"),   // グレー
+        ("インディゴ", "6366F1"), // インディゴ
+        ("エメラルド", "059669"), // エメラルド
+        ("ローズ", "F43F5E")    // ローズ
+    ]
+}
+
 // MARK: - ログ機能
 @MainActor
 class Logger {
@@ -471,16 +489,28 @@ struct FavoriteFolderManagerView: View {
                             .textFieldStyle(.roundedBorder)
                             .frame(minWidth: 200)
                         
-                        HStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text("色:")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             
-                            ColorPicker("", selection: Binding(
-                                get: { Color(hex: newFolderColor) },
-                                set: { newFolderColor = $0.toHex() }
-                            ))
-                            .frame(width: 40, height: 30)
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 8) {
+                                ForEach(FolderColorPalette.colors, id: \.hex) { colorInfo in
+                                    Button(action: {
+                                        newFolderColor = colorInfo.hex
+                                    }) {
+                                        Circle()
+                                            .fill(Color(hex: colorInfo.hex))
+                                            .frame(width: 24, height: 24)
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(newFolderColor == colorInfo.hex ? Color.primary : Color.clear, lineWidth: 2)
+                                            )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                            .frame(maxWidth: 200)
                         }
                         
                         Button("追加") {
@@ -844,6 +874,7 @@ struct FavoritesListView: View {
                                 ForEach(unassignedItems) { item in
                                     SnippetItemRow(
                                         item: item,
+                                        dataManager: dataManager,
                                         onCopy: {
                                             NSPasteboard.general.clearContents()
                                             NSPasteboard.general.setString(item.content, forType: .string)
@@ -852,7 +883,7 @@ struct FavoritesListView: View {
                                             dataManager.removeFromFavorites(item)
                                         },
                                         onEdit: { item in
-                                            // 編集機能は後で実装
+                                            dataManager.updateFavoriteItem(item)
                                         }
                                     )
                                     .padding(.leading, 20)
@@ -921,6 +952,7 @@ struct FolderAccordionView: View {
                     ForEach(items) { item in
                         SnippetItemRow(
                             item: item,
+                            dataManager: dataManager,
                             onCopy: {
                                 NSPasteboard.general.clearContents()
                                 NSPasteboard.general.setString(item.content, forType: .string)
@@ -929,7 +961,7 @@ struct FolderAccordionView: View {
                                 dataManager.removeFromFavorites(item)
                             },
                             onEdit: { item in
-                                // 編集機能は後で実装
+                                dataManager.updateFavoriteItem(item)
                             }
                         )
                         .padding(.leading, 20)
@@ -975,18 +1007,7 @@ struct SnippetRegistrationView: View {
             
             // 入力フォーム
             VStack(spacing: 12) {
-                // 説明フィールド
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("説明（任意）")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(ProfessionalBlueTheme.Colors.text)
-                    
-                    TextField("スニペットの説明を入力", text: $description)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .font(.system(size: 14))
-                }
-                
-                // 内容フィールド
+                // 内容フィールド（メイン）
                 VStack(alignment: .leading, spacing: 4) {
                     Text("内容 *")
                         .font(.system(size: 14, weight: .medium))
@@ -1002,6 +1023,17 @@ struct SnippetRegistrationView: View {
                                 .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
                         )
                         .cornerRadius(6)
+                }
+                
+                // 説明フィールド
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("説明（任意）")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                    
+                    TextField("スニペットの説明を入力", text: $description)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .font(.system(size: 14))
                 }
                 
                 // フォルダ選択
@@ -1050,6 +1082,7 @@ struct SnippetRegistrationView: View {
                             description: description.trimmingCharacters(in: .whitespacesAndNewlines)
                         )
                         Logger.shared.log("作成されたアイテムのfavoriteFolderId: \(newItem.favoriteFolderId?.uuidString ?? "nil")")
+                        Logger.shared.log("作成されたアイテムのdescription: '\(newItem.description)'")
                         dataManager.addToFavorites(newItem, to: selectedFolderId)
                         onDismiss()
                     }
@@ -1080,38 +1113,21 @@ struct SnippetRegistrationView: View {
 // MARK: - スニペットアイテム行
 struct SnippetItemRow: View {
     let item: ClipboardItem
+    let dataManager: ClipboardDataManager
     let onCopy: () -> Void
     let onDelete: () -> Void
     let onEdit: (ClipboardItem) -> Void
     @State private var isEditing = false
     @State private var editedContent = ""
     @State private var editedDescription = ""
+    @State private var editedFolderId: UUID? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if isEditing {
                 // 編集モード
                 VStack(alignment: .leading, spacing: 8) {
-                    // 説明編集
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("説明")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(ProfessionalBlueTheme.Colors.text)
-                        
-                        TextField("説明を入力", text: $editedDescription)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .font(.system(size: 12))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(ProfessionalBlueTheme.Colors.backgroundLight)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
-                            )
-                            .cornerRadius(4)
-                    }
-                    
-                    // コンテンツ編集
+                    // コンテンツ編集（メイン）
                     VStack(alignment: .leading, spacing: 4) {
                         Text("内容")
                             .font(.system(size: 12, weight: .medium))
@@ -1131,10 +1147,72 @@ struct SnippetItemRow: View {
                             .lineLimit(3...6)
                     }
                     
+                    // 説明編集
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("説明")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                        
+                        TextField("説明を入力", text: $editedDescription)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .font(.system(size: 12))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(ProfessionalBlueTheme.Colors.backgroundLight)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+                            )
+                            .cornerRadius(4)
+                    }
+                    
+                    // フォルダ選択
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("フォルダ")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                        
+                        Picker("フォルダを選択", selection: $editedFolderId) {
+                            Text("フォルダなし").tag(nil as UUID?)
+                            ForEach(dataManager.favoriteFolders) { folder in
+                                HStack {
+                                    Circle()
+                                        .fill(Color(hex: folder.color))
+                                        .frame(width: 12, height: 12)
+                                    Text(folder.name)
+                                }
+                                .tag(folder.id as UUID?)
+                            }
+                        }
+                        .pickerStyle(MenuPickerStyle())
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(ProfessionalBlueTheme.Colors.backgroundLight)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+                        )
+                        .cornerRadius(4)
+                    }
+                    
                     // 編集ボタン
                     HStack(spacing: 8) {
                         Button("保存") {
                             // 編集内容を保存
+                            Logger.shared.log("編集保存開始 - 元の説明: '\(item.description)', 新しい説明: '\(editedDescription)'")
+                            var updatedItem = ClipboardItem(
+                                content: editedContent.trimmingCharacters(in: .whitespacesAndNewlines),
+                                isFavorite: item.isFavorite,
+                                categoryId: item.categoryId,
+                                favoriteFolderId: editedFolderId,
+                                description: editedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                            )
+                            // 既存のIDを保持
+                            updatedItem.id = item.id
+                            updatedItem.timestamp = item.timestamp
+                            Logger.shared.log("更新されたアイテムの説明: '\(updatedItem.description)'")
+                            onEdit(updatedItem)
                             isEditing = false
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -1171,23 +1249,21 @@ struct SnippetItemRow: View {
                 // 表示モード
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        // 説明（あれば表示）
-                        if !item.description.isEmpty {
-                            Text(item.description)
-                                .font(.system(size: 12))
-                                .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
-                                .lineLimit(2)
-                        }
-                        
-                        // コンテンツ
+                        // コンテンツ（メイン）
                         Text(item.content)
                             .font(.system(size: 14))
                             .lineLimit(2)
                         
-                        // タイムスタンプ
-                        Text(item.timestamp, style: .time)
-                            .font(.system(size: 10))
-                            .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                        // 説明（あれば表示）
+                        if !item.description.isEmpty {
+                            let _ = Logger.shared.log("説明を表示: '\(item.description)'")
+                            Text(item.description)
+                                .font(.system(size: 12))
+                                .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                                .lineLimit(2)
+                        } else {
+                            let _ = Logger.shared.log("説明が空のため表示しない")
+                        }
                     }
                     
                     Spacer()
@@ -1204,6 +1280,7 @@ struct SnippetItemRow: View {
                         Button(action: {
                             editedContent = item.content
                             editedDescription = item.description
+                            editedFolderId = item.favoriteFolderId
                             isEditing = true
                         }) {
                             Image(systemName: "pencil")
