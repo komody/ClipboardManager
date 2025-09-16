@@ -457,6 +457,12 @@ struct FavoriteFolderManagerView: View {
     @State private var newFolderColor = "#FF6B6B"
     @Environment(\.dismiss) private var dismiss
     
+    // フォルダ編集用の状態
+    @State private var editingFolder: FavoriteFolder? = nil
+    @State private var editedFolderName: String = ""
+    @State private var editedFolderColor: String = ""
+    
+    
     var body: some View {
         VStack(spacing: 0) {
             // ヘッダー
@@ -559,11 +565,21 @@ struct FavoriteFolderManagerView: View {
                                     Spacer()
                                     
                                     if !folder.isDefault {
-                                        Button("削除") {
-                                            dataManager.deleteFavoriteFolder(folder)
+                                        HStack(spacing: 8) {
+                                            Button("編集") {
+                                                editingFolder = folder
+                                                editedFolderName = folder.name
+                                                editedFolderColor = folder.color
+                                            }
+                                            .foregroundColor(.blue)
+                                            .buttonStyle(.plain)
+                                            
+                                            Button("削除") {
+                                                dataManager.deleteFavoriteFolder(folder)
+                                            }
+                                            .foregroundColor(.red)
+                                            .buttonStyle(.plain)
                                         }
-                                        .foregroundColor(.red)
-                                        .buttonStyle(.plain)
                                     }
                                 }
                                 .padding(.vertical, 4)
@@ -579,9 +595,204 @@ struct FavoriteFolderManagerView: View {
         }
         .frame(width: 600, height: 500)
         .background(Color(NSColor.windowBackgroundColor))
+        .sheet(item: $editingFolder) { folder in
+            FolderEditView(
+                folder: folder,
+                editedName: $editedFolderName,
+                editedColor: $editedFolderColor,
+                onSave: { newName, newColor in
+                    dataManager.updateFavoriteFolder(folder.id, name: newName, color: newColor)
+                    editingFolder = nil
+                },
+                onCancel: {
+                    editingFolder = nil
+                },
+                dataManager: dataManager
+            )
+        }
     }
 }
 
+// MARK: - フォルダ編集ビュー
+struct FolderEditView: View {
+    let folder: FavoriteFolder
+    @Binding var editedName: String
+    @Binding var editedColor: String
+    let onSave: (String, String) -> Void
+    let onCancel: () -> Void
+    let dataManager: ClipboardDataManager
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    // スニペット移動用の状態
+    @State private var selectedSnippets: Set<UUID> = []
+    @State private var showingMoveDialog = false
+    
+    // フォルダなしのスニペットを取得
+    private var unassignedSnippets: [ClipboardItem] {
+        dataManager.favoriteItems.filter { $0.favoriteFolderId == nil }
+    }
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            headerView
+            nameInputView
+            colorSelectionView
+            
+            // フォルダなしのスニペット表示
+            if !unassignedSnippets.isEmpty {
+                unassignedSnippetsView
+            }
+            
+            buttonView
+        }
+        .padding(24)
+        .frame(width: 400, height: 500)
+        .background(Color(NSColor.windowBackgroundColor))
+        .alert("スニペットを移動", isPresented: $showingMoveDialog) {
+            Button("このフォルダに移動") {
+                moveSelectedSnippetsToCurrentFolder()
+            }
+            Button("キャンセル", role: .cancel) { }
+        } message: {
+            Text("選択したスニペットを「\(folder.name)」フォルダに移動しますか？")
+        }
+    }
+    
+    private var headerView: some View {
+        Text("フォルダを編集")
+            .font(.title2)
+            .fontWeight(.bold)
+    }
+    
+    private var nameInputView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("フォルダ名")
+                .font(.headline)
+            
+            TextField("フォルダ名を入力", text: $editedName)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: .infinity)
+        }
+    }
+    
+    private var colorSelectionView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("フォルダの色")
+                .font(.headline)
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 8) {
+                ForEach(FolderColorPalette.colors, id: \.hex) { colorInfo in
+                    colorButton(for: colorInfo)
+                }
+            }
+        }
+    }
+    
+    private func colorButton(for colorInfo: (name: String, hex: String)) -> some View {
+        Button(action: {
+            editedColor = colorInfo.hex
+        }) {
+            Circle()
+                .fill(Color(hex: colorInfo.hex))
+                .frame(width: 30, height: 30)
+                .overlay(
+                    Circle()
+                        .stroke(editedColor == colorInfo.hex ? Color.blue : Color.clear, lineWidth: 3)
+                )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var unassignedSnippetsView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("フォルダなしのスニペット")
+                    .font(.headline)
+                
+                Spacer()
+                
+                if !selectedSnippets.isEmpty {
+                    Button("このフォルダに移動") {
+                        showingMoveDialog = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(selectedSnippets.isEmpty)
+                }
+            }
+            
+            List {
+                ForEach(unassignedSnippets) { snippet in
+                    HStack(spacing: 12) {
+                        Checkbox(isChecked: selectedSnippets.contains(snippet.id)) {
+                            if selectedSnippets.contains(snippet.id) {
+                                selectedSnippets.remove(snippet.id)
+                            } else {
+                                selectedSnippets.insert(snippet.id)
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(snippet.content)
+                                .font(.body)
+                                .lineLimit(2)
+                            
+                            if !snippet.description.isEmpty {
+                                Text(snippet.description)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+            .listStyle(.plain)
+            .frame(maxHeight: 150)
+        }
+    }
+    
+    private var buttonView: some View {
+        HStack(spacing: 12) {
+            Button("キャンセル") {
+                onCancel()
+                dismiss()
+            }
+            .buttonStyle(.bordered)
+            
+            Button("保存") {
+                onSave(editedName, editedColor)
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+    }
+    
+    private func moveSelectedSnippetsToCurrentFolder() {
+        let snippetIds = Array(selectedSnippets)
+        dataManager.moveSnippetsToFolder(snippetIds, to: folder.id)
+        selectedSnippets.removeAll()
+    }
+}
+
+// MARK: - チェックボックスコンポーネント
+struct Checkbox: View {
+    let isChecked: Bool
+    let onToggle: () -> Void
+    
+    var body: some View {
+        Button(action: onToggle) {
+            Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                .foregroundColor(isChecked ? .blue : .gray)
+                .font(.system(size: 16))
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
 
 // MARK: - ヘッダービューコンポーネント
 struct HistoryHeaderView: View {
@@ -1326,4 +1537,3 @@ struct HistoryView_Previews: PreviewProvider {
         return HistoryView(dataManager: dataManager)
     }
 }
-
