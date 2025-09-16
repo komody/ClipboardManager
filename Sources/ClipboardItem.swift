@@ -30,7 +30,7 @@ struct Category: Codable, Identifiable, Equatable {
 /// お気に入りフォルダのデータモデル
 struct FavoriteFolder: Codable, Identifiable, Equatable {
     let id: UUID
-    let name: String
+    var name: String
     var color: String // カラーコード
     let isDefault: Bool // デフォルトフォルダかどうか
     let createdAt: Date
@@ -416,8 +416,27 @@ class ClipboardDataManager: ObservableObject {
         return grouped
     }
     
+    /// お気に入りフォルダを更新
+    func updateFavoriteFolder(_ folderId: UUID, name: String, color: String) {
+        if let index = favoriteFolders.firstIndex(where: { $0.id == folderId }) {
+            favoriteFolders[index].name = name
+            favoriteFolders[index].color = color
+            saveData()
+        }
+    }
+    
+    /// スニペットをフォルダに移動
+    func moveSnippetsToFolder(_ snippetIds: [UUID], to folderId: UUID) {
+        for snippetId in snippetIds {
+            if let index = favoriteItems.firstIndex(where: { $0.id == snippetId }) {
+                favoriteItems[index].favoriteFolderId = folderId
+            }
+        }
+        saveData()
+    }
+    
     /// データをUserDefaultsに保存
-    private func saveData() {
+    func saveData() {
         do {
             let historyData = try JSONEncoder().encode(historyItems)
             let favoritesData = try JSONEncoder().encode(favoriteItems)
