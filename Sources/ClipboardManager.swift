@@ -19,6 +19,9 @@ class ClipboardManager: ObservableObject {
         
         // データ変更の監視を開始
         setupDataObserver()
+        
+        // グローバルキーボードイベントの監視を開始
+        setupGlobalKeyboardMonitoring()
     }
     
     /// データ変更の監視を設定
@@ -52,33 +55,41 @@ class ClipboardManager: ObservableObject {
     }
     
     private var cancellables = Set<AnyCancellable>()
+    private nonisolated(unsafe) var globalKeyboardMonitor: Any?
     
     deinit {
         // Timerは自動的に無効化される
-    }
-    
-    /// ステータスバーの設定
-    private func setupStatusBar() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        
-        if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "クリップボード履歴")
-            button.action = #selector(statusBarButtonClicked)
-            button.target = self
+        // グローバルキーボード監視のクリーンアップ
+        if let monitor = globalKeyboardMonitor {
+            NSEvent.removeMonitor(monitor)
         }
     }
     
-    /// メニューバーを更新
-    private func updateMenuBar() {
-        guard let statusItem = statusItem else { return }
-        statusItem.menu = nil // 既存のメニューをクリア
-        statusBarButtonClicked() // メニューを再構築
+    /// グローバルキーボードイベントの監視を設定
+    private func setupGlobalKeyboardMonitoring() {
+        globalKeyboardMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            // Cmd+Option+Cでマウス位置にメニューを表示
+            if event.modifierFlags.contains(.command) && 
+               event.modifierFlags.contains(.option) && 
+               event.keyCode == 8 { // C key
+                Task { @MainActor in
+                    self?.showMenuAtMousePosition()
+                }
+            }
+        }
     }
     
-    /// ステータスバーボタンがクリックされた時の処理
-    @objc private func statusBarButtonClicked() {
-        guard let statusItem = statusItem else { return }
+    /// マウス位置にメニューを表示
+    private func showMenuAtMousePosition() {
+        let mouseLocation = NSEvent.mouseLocation
+        let menu = createClipboardMenu()
         
+        // メニューをマウス位置に表示
+        menu.popUp(positioning: nil, at: mouseLocation, in: nil)
+    }
+    
+    /// クリップボードメニューを作成
+    private func createClipboardMenu() -> NSMenu {
         let menu = NSMenu()
         
         // 履歴セクション（履歴 + スニペット）
@@ -109,7 +120,7 @@ class ClipboardManager: ObservableObject {
             
             // スニペットをフォルダ別に表示（サブメニュー構造）
             if !snippetItems.isEmpty {
-                // スニペット見出しを追加（空のアクションでクリック可能にする）
+                // スニペット見出しを追加
                 let snippetTitle = NSMenuItem(title: "スニペット", action: #selector(doNothing), keyEquivalent: "")
                 snippetTitle.target = self
                 snippetTitle.isEnabled = true
@@ -140,30 +151,7 @@ class ClipboardManager: ObservableObject {
                     }
                 }
                 
-                // 孤立したスニペット（不明なフォルダ）
-                let orphanedSnippets = snippetItems.filter { item in
-                    guard let folderId = item.favoriteFolderId else { return false }
-                    return !dataManager.favoriteFolders.contains { $0.id == folderId }
-                }
-                
-                if !orphanedSnippets.isEmpty {
-                    let orphanedMenuItem = NSMenuItem(title: "📁 不明なフォルダ", action: nil, keyEquivalent: "")
-                    orphanedMenuItem.isEnabled = true
-                    
-                    // サブメニューを作成
-                    let submenu = NSMenu()
-                    for item in orphanedSnippets.prefix(5) {
-                        let submenuItem = NSMenuItem(title: item.displayText, action: #selector(copyToClipboard(_:)), keyEquivalent: "")
-                        submenuItem.target = self
-                        submenuItem.representedObject = item.content
-                        submenu.addItem(submenuItem)
-                    }
-                    
-                    orphanedMenuItem.submenu = submenu
-                    menu.addItem(orphanedMenuItem)
-                }
-                
-                // フォルダなしのスニペット（サブメニュー）- 一番下に配置
+                // フォルダなしのスニペット（サブメニュー）
                 if let unassignedSnippets = snippetsByFolder[nil], !unassignedSnippets.isEmpty {
                     let unassignedMenuItem = NSMenuItem(title: "📁 フォルダなし", action: nil, keyEquivalent: "")
                     unassignedMenuItem.isEnabled = true
@@ -180,9 +168,6 @@ class ClipboardManager: ObservableObject {
                     unassignedMenuItem.submenu = submenu
                     menu.addItem(unassignedMenuItem)
                 }
-                
-                // スニペットセクションの区切り線を追加
-                menu.addItem(NSMenuItem.separator())
             }
             
             menu.addItem(NSMenuItem.separator())
@@ -201,6 +186,32 @@ class ClipboardManager: ObservableObject {
         quitMenuItem.target = self
         menu.addItem(quitMenuItem)
         
+        return menu
+    }
+    
+    /// ステータスバーの設定
+    private func setupStatusBar() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        
+        if let button = statusItem?.button {
+            button.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "クリップボード履歴")
+            button.action = #selector(statusBarButtonClicked)
+            button.target = self
+        }
+    }
+    
+    /// メニューバーを更新
+    private func updateMenuBar() {
+        guard let statusItem = statusItem else { return }
+        statusItem.menu = nil // 既存のメニューをクリア
+        statusBarButtonClicked() // メニューを再構築
+    }
+    
+    /// ステータスバーボタンがクリックされた時の処理
+    @objc private func statusBarButtonClicked() {
+        guard let statusItem = statusItem else { return }
+        
+        let menu = createClipboardMenu()
         statusItem.menu = menu
     }
     
