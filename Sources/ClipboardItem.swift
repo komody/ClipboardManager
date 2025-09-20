@@ -509,6 +509,9 @@ class ClipboardDataManager: ObservableObject {
         // リストを更新
         favoriteItems = newFavoriteItems
         
+        // UI更新を通知
+        objectWillChange.send()
+        
         saveData()
         Logger.shared.log("reorderSnippetsInFolder completed")
     }
