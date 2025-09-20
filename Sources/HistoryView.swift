@@ -70,6 +70,8 @@ struct HistoryView: View {
     @State private var showingFavoriteFolderManager = false
     @State private var showingSnippetRegistration = false
     @State private var isReorderMode = false
+    @State private var hasBeenReordered = false
+    @State private var reorderModeItems: [ClipboardItem] = []
     
     var body: some View {
         VStack(spacing: 0) {
@@ -147,8 +149,26 @@ struct HistoryView: View {
             FavoritesListView(
                 items: filteredFavoriteItems,
                 dataManager: dataManager,
-                isReorderMode: $isReorderMode
+                isReorderMode: $isReorderMode,
+                hasBeenReordered: $hasBeenReordered,
+                reorderModeItems: $reorderModeItems
             )
+            .onChange(of: isReorderMode) { newValue in
+                if !newValue {
+                    Logger.shared.log("並び替えモード終了: 変更を反映中...")
+                    Logger.shared.log("reorderModeItems count: \(reorderModeItems.count)")
+                    Logger.shared.log("dataManager.favoriteItems count: \(dataManager.favoriteItems.count)")
+                    
+                    // 並び替えモード終了時に変更を反映
+                    dataManager.favoriteItems = reorderModeItems
+                    dataManager.saveData()
+                    
+                    // 並び替えが行われたことを記録
+                    hasBeenReordered = true
+                    Logger.shared.log("hasBeenReordered = true に設定")
+                    Logger.shared.log("並び替えモード終了: 反映完了")
+                }
+            }
         }
         .sheet(isPresented: $showingFavoriteFolderManager) {
             FavoriteFolderManagerView(dataManager: dataManager)
@@ -212,7 +232,12 @@ struct HistoryView: View {
             items = items.filter { $0.content.localizedCaseInsensitiveContains(searchText) }
         }
         
-        return items.sorted { $0.timestamp > $1.timestamp }
+        // 並び替えが行われた場合は、timestampでのソートを無効にする
+        if hasBeenReordered {
+            return items
+        } else {
+            return items.sorted { $0.timestamp > $1.timestamp }
+        }
     }
     
     // MARK: - アクション
@@ -1053,6 +1078,8 @@ struct FavoritesListView: View {
     let items: [ClipboardItem]
     let dataManager: ClipboardDataManager
     @Binding var isReorderMode: Bool
+    @Binding var hasBeenReordered: Bool
+    @Binding var reorderModeItems: [ClipboardItem]
     @State private var refreshID = UUID()
     
     // フォルダなしエリアへのドロップ処理
@@ -1091,6 +1118,11 @@ struct FavoritesListView: View {
             // 並び替えモード専用UI
             reorderModeView
                 .id(refreshID)
+                .onAppear {
+                    // 並び替えモード開始時に専用の状態を初期化
+                    // 現在表示されている順序（filteredFavoriteItems）を使用
+                    reorderModeItems = items
+                }
         } else {
             ScrollView {
                 LazyVStack(spacing: 8) {
@@ -1177,6 +1209,7 @@ struct FavoritesListView: View {
                 }
                 .padding(.horizontal, 20)
             }
+            .id(refreshID)
         }
     }
     
@@ -1201,7 +1234,7 @@ struct FavoritesListView: View {
                 
                     // フォルダ別のスニペットを表示
                     ForEach(dataManager.favoriteFolders) { folder in
-                        let folderItems = dataManager.favoriteItems.filter { $0.favoriteFolderId == folder.id }
+                        let folderItems = reorderModeItems.filter { $0.favoriteFolderId == folder.id }
                     
                     if !folderItems.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -1286,7 +1319,7 @@ struct FavoritesListView: View {
                 }
                 
                 // フォルダなしのスニペット
-                let unassignedItems = dataManager.favoriteItems.filter { $0.favoriteFolderId == nil }
+                let unassignedItems = reorderModeItems.filter { $0.favoriteFolderId == nil }
                 if !unassignedItems.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         // ヘッダー
@@ -1382,10 +1415,35 @@ struct FavoritesListView: View {
         }
         
         Logger.shared.log("moveSnippetUp: moving from index \(currentIndex) to \(currentIndex - 1)")
-        var reorderedItems = items
+        
+        // reorderModeItemsから該当フォルダのスニペットを取得
+        let targetFolderSnippets = reorderModeItems.filter { item in
+            if folderId == nil {
+                return item.favoriteFolderId == nil
+            } else {
+                return item.favoriteFolderId == folderId
+            }
+        }
+        
+        var reorderedItems = targetFolderSnippets
         reorderedItems.swapAt(currentIndex, currentIndex - 1)
-        dataManager.reorderSnippetsInFolder(reorderedItems, folderId: folderId)
-        refreshID = UUID() // UIを強制更新
+        
+        // reorderModeItemsを直接更新
+        let otherSnippets = reorderModeItems.filter { item in
+            if folderId == nil {
+                return item.favoriteFolderId != nil
+            } else {
+                return item.favoriteFolderId != folderId
+            }
+        }
+        
+        reorderModeItems = reorderedItems + otherSnippets
+        Logger.shared.log("moveSnippetUp: reorderModeItems updated, count: \(reorderModeItems.count)")
+        
+        // UI更新を確実にする
+        DispatchQueue.main.async {
+            self.refreshID = UUID()
+        }
         Logger.shared.log("moveSnippetUp: reorder completed")
     }
     
@@ -1399,10 +1457,35 @@ struct FavoritesListView: View {
         }
         
         Logger.shared.log("moveSnippetDown: moving from index \(currentIndex) to \(currentIndex + 1)")
-        var reorderedItems = items
+        
+        // reorderModeItemsから該当フォルダのスニペットを取得
+        let targetFolderSnippets = reorderModeItems.filter { item in
+            if folderId == nil {
+                return item.favoriteFolderId == nil
+            } else {
+                return item.favoriteFolderId == folderId
+            }
+        }
+        
+        var reorderedItems = targetFolderSnippets
         reorderedItems.swapAt(currentIndex, currentIndex + 1)
-        dataManager.reorderSnippetsInFolder(reorderedItems, folderId: folderId)
-        refreshID = UUID() // UIを強制更新
+        
+        // reorderModeItemsを直接更新
+        let otherSnippets = reorderModeItems.filter { item in
+            if folderId == nil {
+                return item.favoriteFolderId != nil
+            } else {
+                return item.favoriteFolderId != folderId
+            }
+        }
+        
+        reorderModeItems = reorderedItems + otherSnippets
+        Logger.shared.log("moveSnippetDown: reorderModeItems updated, count: \(reorderModeItems.count)")
+        
+        // UI更新を確実にする
+        DispatchQueue.main.async {
+            self.refreshID = UUID()
+        }
         Logger.shared.log("moveSnippetDown: reorder completed")
     }
     
