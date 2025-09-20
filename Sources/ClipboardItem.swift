@@ -512,7 +512,7 @@ class ClipboardDataManager: ObservableObject {
         saveData()
         Logger.shared.log("reorderSnippetsInFolder completed")
     }
-    
+
     /// データをUserDefaultsに保存
     func saveData() {
         do {
