@@ -69,6 +69,7 @@ struct HistoryView: View {
     @State private var selectedFavoriteFolder: UUID? = nil
     @State private var showingFavoriteFolderManager = false
     @State private var showingSnippetRegistration = false
+    @State private var isReorderMode = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -137,14 +138,16 @@ struct HistoryView: View {
                 selectedFolder: $selectedFavoriteFolder,
                 folders: dataManager.favoriteFolders,
                 onFolderManager: { showingFavoriteFolderManager = true },
-                onAddSnippet: { showingSnippetRegistration = true }
+                onAddSnippet: { showingSnippetRegistration = true },
+                isReorderMode: $isReorderMode
             )
             
             Divider()
             
             FavoritesListView(
                 items: filteredFavoriteItems,
-                dataManager: dataManager
+                dataManager: dataManager,
+                isReorderMode: $isReorderMode
             )
         }
         .sheet(isPresented: $showingFavoriteFolderManager) {
@@ -462,6 +465,24 @@ struct FavoriteFolderManagerView: View {
     @State private var editedFolderName: String = ""
     @State private var editedFolderColor: String = ""
     
+    // ドロップ処理
+    private func handleDrop(providers: [NSItemProvider], targetFolder: FavoriteFolder) -> Bool {
+        for provider in providers {
+            provider.loadTransferable(type: ClipboardItem.self) { result in
+                switch result {
+                case .success(let clipboardItem):
+                    DispatchQueue.main.async {
+                        // スニペットを指定されたフォルダに移動
+                        dataManager.moveSnippetsToFolder([clipboardItem.id], to: targetFolder.id)
+                    }
+                case .failure(_):
+                    break
+                }
+            }
+        }
+        return true
+    }
+    
     
     var body: some View {
         VStack(spacing: 0) {
@@ -583,6 +604,9 @@ struct FavoriteFolderManagerView: View {
                                     }
                                 }
                                 .padding(.vertical, 4)
+                                .onDrop(of: [.data], isTargeted: nil) { providers in
+                                    handleDrop(providers: providers, targetFolder: folder)
+                                }
                             }
                         }
                         .listStyle(.plain)
@@ -932,6 +956,7 @@ struct FavoritesHeaderView: View {
     let folders: [FavoriteFolder]
     let onFolderManager: () -> Void
     let onAddSnippet: () -> Void
+    @Binding var isReorderMode: Bool
     
     var body: some View {
         HStack {
@@ -942,21 +967,41 @@ struct FavoritesHeaderView: View {
             Spacer()
             
             HStack(spacing: 12) {
-                // スニペット追加ボタン
-                Button(action: onAddSnippet) {
+                // 並び替えモード切り替えボタン
+                Button(action: {
+                    isReorderMode.toggle()
+                }) {
                     HStack(spacing: 6) {
-                        Image(systemName: "plus")
+                        Image(systemName: isReorderMode ? "checkmark" : "arrow.up.arrow.down")
                             .font(.system(size: 12))
-                        Text("スニペット追加")
+                        Text(isReorderMode ? "完了" : "並び替え")
                             .font(.system(size: 13, weight: .medium))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(ProfessionalBlueTheme.Colors.primary)
+                    .background(isReorderMode ? ProfessionalBlueTheme.Colors.success : ProfessionalBlueTheme.Colors.warning)
                     .foregroundColor(.white)
                     .cornerRadius(6)
                 }
                 .buttonStyle(PlainButtonStyle())
+                
+                // スニペット追加ボタン（並び替えモード時は非表示）
+                if !isReorderMode {
+                    Button(action: onAddSnippet) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 12))
+                            Text("スニペット追加")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(ProfessionalBlueTheme.Colors.primary)
+                        .foregroundColor(.white)
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
                 
                 // フォルダフィルター
                 Menu {
@@ -984,16 +1029,19 @@ struct FavoritesHeaderView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 
-                Button("フォルダ管理") {
-                    onFolderManager()
+                // フォルダ管理ボタン（並び替えモード時は非表示）
+                if !isReorderMode {
+                    Button("フォルダ管理") {
+                        onFolderManager()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(ProfessionalBlueTheme.Colors.primaryLight)
+                    .foregroundColor(ProfessionalBlueTheme.Colors.primaryDark)
+                    .cornerRadius(6)
+                    .font(.system(size: 13))
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(ProfessionalBlueTheme.Colors.primaryLight)
-                .foregroundColor(ProfessionalBlueTheme.Colors.primaryDark)
-                .cornerRadius(6)
-                .font(.system(size: 13))
-                .buttonStyle(PlainButtonStyle())
             }
         }
         .padding()
@@ -1004,6 +1052,26 @@ struct FavoritesHeaderView: View {
 struct FavoritesListView: View {
     let items: [ClipboardItem]
     let dataManager: ClipboardDataManager
+    @Binding var isReorderMode: Bool
+    @State private var refreshID = UUID()
+    
+    // フォルダなしエリアへのドロップ処理
+    private func handleDropToUnassigned(providers: [NSItemProvider]) -> Bool {
+        for provider in providers {
+            provider.loadTransferable(type: ClipboardItem.self) { result in
+                switch result {
+                case .success(let clipboardItem):
+                    DispatchQueue.main.async {
+                        // スニペットをフォルダなしに移動
+                        dataManager.moveSnippetsToFolder([clipboardItem.id], to: nil)
+                    }
+                case .failure(_):
+                    break
+                }
+            }
+        }
+        return true
+    }
     @State private var expandedFolders: Set<UUID> = []
     
     var body: some View {
@@ -1019,6 +1087,10 @@ struct FavoritesListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding()
+        } else if isReorderMode {
+            // 並び替えモード専用UI
+            reorderModeView
+                .id(refreshID)
         } else {
             ScrollView {
                 LazyVStack(spacing: 8) {
@@ -1075,6 +1147,9 @@ struct FavoritesListView: View {
                                     .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
                             )
                             .cornerRadius(8)
+                            .onDrop(of: [.data], isTargeted: nil) { providers in
+                                handleDropToUnassigned(providers: providers)
+                            }
                             
                             // スニペット一覧（直接表示）
                             VStack(spacing: 4) {
@@ -1104,6 +1179,233 @@ struct FavoritesListView: View {
             }
         }
     }
+    
+    // MARK: - 並び替えモード専用UI
+    private var reorderModeView: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                // 並び替えモードの説明
+                HStack {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .foregroundColor(ProfessionalBlueTheme.Colors.warning)
+                    Text("並び替えモード: 上下矢印ボタンでスニペットの順序を変更できます")
+                        .font(.system(size: 14))
+                        .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(ProfessionalBlueTheme.Colors.warning.opacity(0.1))
+                .cornerRadius(8)
+                .padding(.horizontal, 20)
+                
+                    // フォルダ別のスニペットを表示
+                    ForEach(dataManager.favoriteFolders) { folder in
+                        let folderItems = dataManager.favoriteItems.filter { $0.favoriteFolderId == folder.id }
+                    
+                    if !folderItems.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            // フォルダヘッダー
+                            HStack {
+                                Circle()
+                                    .fill(Color(hex: folder.color))
+                                    .frame(width: 12, height: 12)
+                                
+                                Text(folder.name)
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                                
+                                Spacer()
+                                
+                                Text("\(folderItems.count)件")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(ProfessionalBlueTheme.Colors.backgroundLight)
+                                    .cornerRadius(8)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(ProfessionalBlueTheme.Colors.card)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+                            )
+                            .cornerRadius(8)
+                            
+                            // スニペット一覧（並び替え可能）
+                            VStack(spacing: 4) {
+                                ForEach(Array(folderItems.enumerated()), id: \.element.id) { index, item in
+                                    HStack(spacing: 8) {
+                                        // 並び替えボタン
+                                        VStack(spacing: 2) {
+                                            Button(action: {
+                                                moveSnippetUp(item: item, in: folderItems, folderId: folder.id)
+                                            }) {
+                                                Image(systemName: "chevron.up")
+                                                    .font(.system(size: 12))
+                                                    .foregroundColor(index > 0 ? .blue : .gray)
+                                            }
+                                            .buttonStyle(PlainButtonStyle())
+                                            .disabled(index == 0)
+                                            
+                                            Button(action: {
+                                                moveSnippetDown(item: item, in: folderItems, folderId: folder.id)
+                                            }) {
+                                                Image(systemName: "chevron.down")
+                                                    .font(.system(size: 12))
+                                                    .foregroundColor(index < folderItems.count - 1 ? .blue : .gray)
+                                            }
+                                            .buttonStyle(PlainButtonStyle())
+                                            .disabled(index == folderItems.count - 1)
+                                        }
+                                        .frame(width: 20)
+                                        
+                                        SnippetItemRow(
+                                            item: item,
+                                            dataManager: dataManager,
+                                            onCopy: {
+                                                NSPasteboard.general.clearContents()
+                                                NSPasteboard.general.setString(item.content, forType: .string)
+                                            },
+                                            onDelete: {
+                                                dataManager.removeFromFavorites(item)
+                                            },
+                                            onEdit: { item in
+                                                dataManager.updateFavoriteItem(item)
+                                            }
+                                        )
+                                    }
+                                    .padding(.leading, 20)
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+                }
+                
+                // フォルダなしのスニペット
+                let unassignedItems = dataManager.favoriteItems.filter { $0.favoriteFolderId == nil }
+                if !unassignedItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        // ヘッダー
+                        HStack {
+                            Image(systemName: "star")
+                                .font(.system(size: 12))
+                                .foregroundColor(ProfessionalBlueTheme.Colors.warning)
+                            
+                            Text("フォルダなし")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(ProfessionalBlueTheme.Colors.text)
+                            
+                            Spacer()
+                            
+                            Text("\(unassignedItems.count)件")
+                                .font(.system(size: 12))
+                                .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(ProfessionalBlueTheme.Colors.backgroundLight)
+                                .cornerRadius(8)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(ProfessionalBlueTheme.Colors.card)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
+                        )
+                        .cornerRadius(8)
+                        
+                        // スニペット一覧（並び替え可能）
+                        VStack(spacing: 4) {
+                            ForEach(Array(unassignedItems.enumerated()), id: \.element.id) { index, item in
+                                HStack(spacing: 8) {
+                                    // 並び替えボタン
+                                    VStack(spacing: 2) {
+                                        Button(action: {
+                                            moveSnippetUp(item: item, in: unassignedItems, folderId: nil)
+                                        }) {
+                                            Image(systemName: "chevron.up")
+                                                .font(.system(size: 12))
+                                                .foregroundColor(index > 0 ? .blue : .gray)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                        .disabled(index == 0)
+                                        
+                                        Button(action: {
+                                            moveSnippetDown(item: item, in: unassignedItems, folderId: nil)
+                                        }) {
+                                            Image(systemName: "chevron.down")
+                                                .font(.system(size: 12))
+                                                .foregroundColor(index < unassignedItems.count - 1 ? .blue : .gray)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                        .disabled(index == unassignedItems.count - 1)
+                                    }
+                                    .frame(width: 20)
+                                    
+                                    SnippetItemRow(
+                                        item: item,
+                                        dataManager: dataManager,
+                                        onCopy: {
+                                            NSPasteboard.general.clearContents()
+                                            NSPasteboard.general.setString(item.content, forType: .string)
+                                        },
+                                        onDelete: {
+                                            dataManager.removeFromFavorites(item)
+                                        },
+                                        onEdit: { item in
+                                            dataManager.updateFavoriteItem(item)
+                                        }
+                                    )
+                                }
+                                .padding(.leading, 20)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+    
+    /// スニペットを上に移動
+    private func moveSnippetUp(item: ClipboardItem, in items: [ClipboardItem], folderId: UUID?) {
+        Logger.shared.log("moveSnippetUp called for item: \(item.content)")
+        guard let currentIndex = items.firstIndex(where: { $0.id == item.id }),
+              currentIndex > 0 else { 
+            Logger.shared.log("moveSnippetUp: cannot move up - currentIndex: \(items.firstIndex(where: { $0.id == item.id }) ?? -1)")
+            return 
+        }
+        
+        Logger.shared.log("moveSnippetUp: moving from index \(currentIndex) to \(currentIndex - 1)")
+        var reorderedItems = items
+        reorderedItems.swapAt(currentIndex, currentIndex - 1)
+        dataManager.reorderSnippetsInFolder(reorderedItems, folderId: folderId)
+        refreshID = UUID() // UIを強制更新
+        Logger.shared.log("moveSnippetUp: reorder completed")
+    }
+    
+    /// スニペットを下に移動
+    private func moveSnippetDown(item: ClipboardItem, in items: [ClipboardItem], folderId: UUID?) {
+        Logger.shared.log("moveSnippetDown called for item: \(item.content)")
+        guard let currentIndex = items.firstIndex(where: { $0.id == item.id }),
+              currentIndex < items.count - 1 else { 
+            Logger.shared.log("moveSnippetDown: cannot move down - currentIndex: \(items.firstIndex(where: { $0.id == item.id }) ?? -1), count: \(items.count)")
+            return 
+        }
+        
+        Logger.shared.log("moveSnippetDown: moving from index \(currentIndex) to \(currentIndex + 1)")
+        var reorderedItems = items
+        reorderedItems.swapAt(currentIndex, currentIndex + 1)
+        dataManager.reorderSnippetsInFolder(reorderedItems, folderId: folderId)
+        refreshID = UUID() // UIを強制更新
+        Logger.shared.log("moveSnippetDown: reorder completed")
+    }
+    
 }
 
 // MARK: - フォルダアコーディオンビュー
@@ -1113,6 +1415,24 @@ struct FolderAccordionView: View {
     let isExpanded: Bool
     let onToggle: () -> Void
     let dataManager: ClipboardDataManager
+    
+    // ドロップ処理
+    private func handleDrop(providers: [NSItemProvider], targetFolder: FavoriteFolder) -> Bool {
+        for provider in providers {
+            provider.loadTransferable(type: ClipboardItem.self) { result in
+                switch result {
+                case .success(let clipboardItem):
+                    DispatchQueue.main.async {
+                        // スニペットを指定されたフォルダに移動
+                        dataManager.moveSnippetsToFolder([clipboardItem.id], to: targetFolder.id)
+                    }
+                case .failure(_):
+                    break
+                }
+            }
+        }
+        return true
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1152,6 +1472,9 @@ struct FolderAccordionView: View {
                 .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
+            .onDrop(of: [.data], isTargeted: nil) { providers in
+                handleDrop(providers: providers, targetFolder: folder)
+            }
             
             // フォルダ内容（アコーディオン）
             if isExpanded {
@@ -1182,6 +1505,7 @@ struct FolderAccordionView: View {
             }
         }
     }
+    
 }
 
 // MARK: - スニペット登録ビュー
@@ -1514,6 +1838,19 @@ struct SnippetItemRow: View {
                         .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 0.5)
                 )
                 .cornerRadius(6)
+                .draggable(item) {
+                    // ドラッグ時のプレビュー
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.text")
+                            .foregroundColor(.blue)
+                        Text(item.content)
+                            .lineLimit(1)
+                    }
+                    .padding(8)
+                    .background(Color.white)
+                    .cornerRadius(8)
+                    .shadow(radius: 4)
+                }
             }
         }
         .onAppear {

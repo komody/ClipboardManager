@@ -1,4 +1,6 @@
 import Foundation
+import SwiftUI
+import UniformTypeIdentifiers
 
 /// カテゴリのデータモデル
 struct Category: Codable, Identifiable, Equatable {
@@ -47,7 +49,7 @@ struct FavoriteFolder: Codable, Identifiable, Equatable {
 }
 
 /// クリップボードアイテムのデータモデル
-struct ClipboardItem: Codable, Identifiable, Equatable {
+struct ClipboardItem: Codable, Identifiable, Equatable, Transferable {
     var id: UUID
     let content: String
     var timestamp: Date
@@ -104,6 +106,11 @@ struct ClipboardItem: Codable, Identifiable, Equatable {
         formatter.dateStyle = .none
         formatter.timeStyle = .short
         return formatter.string(from: timestamp)
+    }
+    
+    // MARK: - Transferable
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .data)
     }
 }
 
@@ -426,13 +433,84 @@ class ClipboardDataManager: ObservableObject {
     }
     
     /// スニペットをフォルダに移動
-    func moveSnippetsToFolder(_ snippetIds: [UUID], to folderId: UUID) {
+    func moveSnippetsToFolder(_ snippetIds: [UUID], to folderId: UUID?) {
         for snippetId in snippetIds {
             if let index = favoriteItems.firstIndex(where: { $0.id == snippetId }) {
                 favoriteItems[index].favoriteFolderId = folderId
             }
         }
         saveData()
+    }
+    
+    /// スニペットの並び替え
+    func reorderSnippets(from source: IndexSet, to destination: Int, in folderId: UUID?) {
+        // 指定されたフォルダのスニペットのみを取得
+        let targetFolderSnippets = favoriteItems.filter { item in
+            if folderId == nil {
+                return item.favoriteFolderId == nil
+            } else {
+                return item.favoriteFolderId == folderId
+            }
+        }
+        let otherSnippets = favoriteItems.filter { item in
+            if folderId == nil {
+                return item.favoriteFolderId != nil
+            } else {
+                return item.favoriteFolderId != folderId
+            }
+        }
+        
+        // 対象フォルダ内のスニペットを並び替え
+        var reorderedSnippets = targetFolderSnippets
+        reorderedSnippets.move(fromOffsets: source, toOffset: destination)
+        
+        // 全体のリストを再構築
+        var newFavoriteItems: [ClipboardItem] = []
+        
+        // 対象フォルダのスニペットを新しい順序で追加
+        newFavoriteItems.append(contentsOf: reorderedSnippets)
+        
+        // 他のフォルダのスニペットを追加
+        newFavoriteItems.append(contentsOf: otherSnippets)
+        
+        // リストを更新
+        favoriteItems = newFavoriteItems
+        
+        saveData()
+    }
+    
+    /// フォルダ内のスニペットを指定された順序で並び替え
+    @MainActor
+    func reorderSnippetsInFolder(_ reorderedSnippets: [ClipboardItem], folderId: UUID?) {
+        Logger.shared.log("reorderSnippetsInFolder called with \(reorderedSnippets.count) snippets, folderId: \(folderId?.uuidString ?? "nil")")
+        
+        // 指定されたフォルダ以外のスニペットを取得
+        let otherSnippets = favoriteItems.filter { item in
+            if folderId == nil {
+                return item.favoriteFolderId != nil
+            } else {
+                return item.favoriteFolderId != folderId
+            }
+        }
+        
+        Logger.shared.log("Found \(otherSnippets.count) other snippets")
+        
+        // 全体のリストを再構築
+        var newFavoriteItems: [ClipboardItem] = []
+        
+        // 並び替えられたスニペットを追加
+        newFavoriteItems.append(contentsOf: reorderedSnippets)
+        
+        // 他のフォルダのスニペットを追加
+        newFavoriteItems.append(contentsOf: otherSnippets)
+        
+        Logger.shared.log("New favoriteItems count: \(newFavoriteItems.count)")
+        
+        // リストを更新
+        favoriteItems = newFavoriteItems
+        
+        saveData()
+        Logger.shared.log("reorderSnippetsInFolder completed")
     }
     
     /// データをUserDefaultsに保存
