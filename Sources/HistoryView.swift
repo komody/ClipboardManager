@@ -681,12 +681,6 @@ struct FolderEditView: View {
             Text("選択したスニペットを「\(folder.name)」フォルダに移動しますか？")
         }
     }
-}
-
-// MARK: - 履歴リストビューコンポーネント
-struct HistoryListView: View {
-    let items: [ClipboardItem]
-    let dataManager: ClipboardDataManager
     
     private var headerView: some View {
         Text("フォルダを編集")
@@ -807,6 +801,7 @@ struct HistoryListView: View {
         selectedSnippets.removeAll()
     }
 }
+
 
 // MARK: - チェックボックスコンポーネント
 struct Checkbox: View {
