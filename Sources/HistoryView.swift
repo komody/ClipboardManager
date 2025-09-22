@@ -135,14 +135,13 @@ struct HistoryView: View {
     // MARK: - お気に入りリストビュー
     private var favoritesListView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            FavoritesHeaderView(
-                title: "スニペット (\(filteredFavoriteItems.count)件)",
-                selectedFolder: $selectedFavoriteFolder,
-                folders: dataManager.favoriteFolders,
-                onFolderManager: { showingFavoriteFolderManager = true },
-                onAddSnippet: { showingSnippetRegistration = true },
-                isReorderMode: $isReorderMode
-            )
+        FavoritesHeaderView(
+            title: "スニペット (\(filteredFavoriteItems.count)件)",
+            folders: dataManager.favoriteFolders,
+            onFolderManager: { showingFavoriteFolderManager = true },
+            onAddSnippet: { showingSnippetRegistration = true },
+            isReorderMode: $isReorderMode
+        )
             
             Divider()
             
@@ -741,11 +740,12 @@ struct FolderEditView: View {
         Button(action: {
             editedColor = colorInfo.hex
         }) {
-            Circle()
-                .fill(Color(hex: colorInfo.hex))
+            Image(systemName: "folder.fill")
+                .font(.system(size: 20))
+                .foregroundColor(Color(hex: colorInfo.hex))
                 .frame(width: 30, height: 30)
                 .overlay(
-                    Circle()
+                    RoundedRectangle(cornerRadius: 4)
                         .stroke(editedColor == colorInfo.hex ? Color.blue : Color.clear, lineWidth: 3)
                 )
         }
@@ -977,7 +977,6 @@ struct HistoryListView: View {
 // MARK: - お気に入りヘッダービューコンポーネント
 struct FavoritesHeaderView: View {
     let title: String
-    @Binding var selectedFolder: UUID?
     let folders: [FavoriteFolder]
     let onFolderManager: () -> Void
     let onAddSnippet: () -> Void
@@ -1028,31 +1027,6 @@ struct FavoritesHeaderView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
                 
-                // フォルダフィルター
-                Menu {
-                    Button("すべてのフォルダ") {
-                        selectedFolder = nil
-                    }
-                    
-                    ForEach(folders) { folder in
-                        Button(folder.name) {
-                            selectedFolder = folder.id
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "folder.fill")
-                            .font(.system(size: 12))
-                        Text(selectedFolder == nil ? "すべて" : folders.first(where: { $0.id == selectedFolder })?.name ?? "すべて")
-                            .font(.system(size: 13))
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.orange.opacity(0.1))
-                    .foregroundColor(.orange)
-                    .cornerRadius(6)
-                }
-                .buttonStyle(PlainButtonStyle())
                 
                 // フォルダ管理ボタン（並び替えモード時は非表示）
                 if !isReorderMode {
@@ -1240,9 +1214,9 @@ struct FavoritesListView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             // フォルダヘッダー
                             HStack {
-                                Circle()
-                                    .fill(Color(hex: folder.color))
-                                    .frame(width: 12, height: 12)
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color(hex: folder.color))
                                 
                                 Text(folder.name)
                                     .font(.system(size: 16, weight: .medium))
@@ -1527,9 +1501,9 @@ struct FolderAccordionView: View {
                         .foregroundColor(ProfessionalBlueTheme.Colors.text)
                         .animation(.easeInOut(duration: 0.2), value: isExpanded)
                     
-                    Circle()
-                        .fill(Color(hex: folder.color))
-                        .frame(width: 12, height: 12)
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hex: folder.color))
                     
                     Text(folder.name)
                         .font(.system(size: 16, weight: .medium))

@@ -270,9 +270,9 @@ struct FolderBadge: View {
     
     var body: some View {
         HStack(spacing: ProfessionalBlueTheme.Spacing.xs) {
-            Circle()
-                .fill(Color(hex: folder.color))
-                .frame(width: 8, height: 8)
+            Image(systemName: "folder.fill")
+                .font(.system(size: 8))
+                .foregroundColor(Color(hex: folder.color))
             
             Text(folder.name)
                 .font(.system(size: ProfessionalBlueTheme.FontSize.xs, weight: .medium))
