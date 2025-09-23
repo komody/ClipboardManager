@@ -165,11 +165,6 @@ class ClipboardDataManager: ObservableObject {
         let existingFolders = ["Git", "React", "Laravel"]
         let hasExistingFolders = favoriteFolders.contains { existingFolders.contains($0.name) }
         
-        print("DEBUG: 開発用スニペット初期化 - 既存フォルダ: \(hasExistingFolders)")
-        print("DEBUG: 現在のフォルダ数: \(favoriteFolders.count)")
-        for folder in favoriteFolders {
-            print("DEBUG: フォルダ: \(folder.name)")
-        }
         
         if !hasExistingFolders {
             // Git フォルダとスニペット
@@ -423,7 +418,6 @@ class ClipboardDataManager: ObservableObject {
         for i in 0..<favoriteItems.count {
             if let folderId = favoriteItems[i].favoriteFolderId,
                !validFolderIds.contains(folderId) {
-                print("[] 孤立したスニペットを修正: '\(favoriteItems[i].content)' (フォルダID: \(folderId))")
                 favoriteItems[i].favoriteFolderId = nil
                 hasChanges = true
             }
@@ -431,7 +425,6 @@ class ClipboardDataManager: ObservableObject {
         
         if hasChanges {
             saveData()
-            print("[] 孤立したスニペットの修正完了")
         }
     }
     
@@ -523,15 +516,6 @@ class ClipboardDataManager: ObservableObject {
             favoriteItems.append(newItem)
         }
         
-        print("DEBUG: フォルダ '\(folderName)' 作成完了 - スニペット数: \(snippets.count)")
-        print("DEBUG: 総スニペット数: \(favoriteItems.count)")
-        
-        // 作成されたスニペットの詳細をログ出力
-        let folderSnippets = favoriteItems.filter { $0.favoriteFolderId == newFolder.id }
-        print("DEBUG: フォルダ '\(folderName)' のスニペット詳細:")
-        for (index, snippet) in folderSnippets.enumerated() {
-            print("DEBUG:  スニペット \(index + 1): '\(snippet.content.prefix(20))...' - フォルダID: \(snippet.favoriteFolderId?.uuidString ?? "nil")")
-        }
         
         saveData()
         
@@ -581,7 +565,6 @@ class ClipboardDataManager: ObservableObject {
     /// フォルダ内のスニペットを指定された順序で並び替え
     @MainActor
     func reorderSnippetsInFolder(_ reorderedSnippets: [ClipboardItem], folderId: UUID?) {
-        Logger.shared.log("reorderSnippetsInFolder called with \(reorderedSnippets.count) snippets, folderId: \(folderId?.uuidString ?? "nil")")
         
         // 指定されたフォルダ以外のスニペットを取得
         let otherSnippets = favoriteItems.filter { item in
@@ -592,7 +575,6 @@ class ClipboardDataManager: ObservableObject {
             }
         }
         
-        Logger.shared.log("Found \(otherSnippets.count) other snippets")
         
         // 全体のリストを再構築
         var newFavoriteItems: [ClipboardItem] = []
@@ -603,7 +585,6 @@ class ClipboardDataManager: ObservableObject {
         // 他のフォルダのスニペットを追加
         newFavoriteItems.append(contentsOf: otherSnippets)
         
-        Logger.shared.log("New favoriteItems count: \(newFavoriteItems.count)")
         
         // リストを更新
         favoriteItems = newFavoriteItems
@@ -612,7 +593,6 @@ class ClipboardDataManager: ObservableObject {
         objectWillChange.send()
         
         saveData()
-        Logger.shared.log("reorderSnippetsInFolder completed")
     }
 
     /// データをUserDefaultsに保存

@@ -71,7 +71,6 @@ class ClipboardManager: ObservableObject {
     private nonisolated(unsafe) var globalKeyboardMonitor: Any?
     
     @objc private func handleMenuBarUpdateNotification() {
-        print("DEBUG: メニューバー更新通知を受信")
         updateMenuBar()
     }
     
@@ -149,15 +148,6 @@ class ClipboardManager: ObservableObject {
                 
                 // 直接フィルタリングを使用するため、グループ化は不要
                 
-        // デバッグ用: フォルダとスニペットの情報を出力
-        print("DEBUG: メニューバー更新 - フォルダ数: \(dataManager.favoriteFolders.count)")
-        print("DEBUG: 総スニペット数: \(dataManager.favoriteItems.count)")
-        
-        for folder in dataManager.favoriteFolders {
-            // フォルダIDが一致するスニペットを直接確認
-            let directSnippets = dataManager.favoriteItems.filter { $0.favoriteFolderId == folder.id }
-            print("DEBUG: フォルダ '\(folder.name)' 直接フィルタ - スニペット数: \(directSnippets.count)")
-        }
                 
                 // フォルダ別のスニペット（サブメニュー）
                 for folder in dataManager.favoriteFolders {
@@ -183,9 +173,6 @@ class ClipboardManager: ObservableObject {
                         
                         folderMenuItem.submenu = submenu
                         menu.addItem(folderMenuItem)
-                    } else {
-                        // デバッグ用: 空のフォルダもログに出力
-                        print("DEBUG: フォルダ '\(folder.name)' にはスニペットがありません")
                     }
                 }
                 
