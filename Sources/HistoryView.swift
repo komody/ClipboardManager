@@ -1189,6 +1189,32 @@ struct FavoritesListView: View {
                 .padding(.horizontal, 20)
             }
             .id(refreshID)
+            .onAppear {
+                // 検索時に該当するフォルダを自動的に開く
+                if !searchText.isEmpty {
+                    autoExpandFoldersWithResults()
+                }
+            }
+            .onChange(of: searchText) { _ in
+                // 検索テキストが変更された時に該当するフォルダを自動的に開く
+                if !searchText.isEmpty {
+                    autoExpandFoldersWithResults()
+                } else {
+                    // 検索をクリアした時はすべてのフォルダを閉じる
+                    expandedFolders.removeAll()
+                }
+            }
+        }
+    }
+    
+    // MARK: - 検索時の自動展開
+    private func autoExpandFoldersWithResults() {
+        // 検索結果があるフォルダを自動的に展開
+        for folder in dataManager.favoriteFolders {
+            let folderItems = items.filter { $0.favoriteFolderId == folder.id }
+            if !folderItems.isEmpty {
+                expandedFolders.insert(folder.id)
+            }
         }
     }
     
