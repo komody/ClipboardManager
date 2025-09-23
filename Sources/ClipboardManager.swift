@@ -22,6 +22,19 @@ class ClipboardManager: ObservableObject {
         
         // グローバルキーボードイベントの監視を開始
         setupGlobalKeyboardMonitoring()
+        
+        // メニューバー更新通知の監視
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMenuBarUpdateNotification),
+            name: NSNotification.Name("UpdateMenuBar"),
+            object: nil
+        )
+        
+        // 初期メニューバー更新（少し遅延させてデータが完全に読み込まれてから実行）
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.updateMenuBar()
+        }
     }
     
     /// データ変更の監視を設定
@@ -57,12 +70,20 @@ class ClipboardManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private nonisolated(unsafe) var globalKeyboardMonitor: Any?
     
+    @objc private func handleMenuBarUpdateNotification() {
+        print("DEBUG: メニューバー更新通知を受信")
+        updateMenuBar()
+    }
+    
     deinit {
         // Timerは自動的に無効化される
         // グローバルキーボード監視のクリーンアップ
         if let monitor = globalKeyboardMonitor {
             NSEvent.removeMonitor(monitor)
         }
+        
+        // 通知の監視を停止
+        NotificationCenter.default.removeObserver(self)
     }
     
     /// グローバルキーボードイベントの監視を設定
@@ -94,7 +115,7 @@ class ClipboardManager: ObservableObject {
         
         // 履歴セクション（履歴 + スニペット）
         let recentItems = dataManager.historyItems.prefix(10)
-        let snippetItems = dataManager.favoriteItems.prefix(10)
+        let snippetItems = dataManager.favoriteItems
         
         if !recentItems.isEmpty || !snippetItems.isEmpty {
             // 履歴をサブメニューで表示
@@ -126,44 +147,67 @@ class ClipboardManager: ObservableObject {
                 snippetTitle.isEnabled = true
                 menu.addItem(snippetTitle)
                 
-                // フォルダ別にスニペットをグループ化
-                let snippetsByFolder = Dictionary(grouping: snippetItems) { item in
-                    item.favoriteFolderId
-                }
+                // 直接フィルタリングを使用するため、グループ化は不要
+                
+        // デバッグ用: フォルダとスニペットの情報を出力
+        print("DEBUG: メニューバー更新 - フォルダ数: \(dataManager.favoriteFolders.count)")
+        print("DEBUG: 総スニペット数: \(dataManager.favoriteItems.count)")
+        
+        for folder in dataManager.favoriteFolders {
+            // フォルダIDが一致するスニペットを直接確認
+            let directSnippets = dataManager.favoriteItems.filter { $0.favoriteFolderId == folder.id }
+            print("DEBUG: フォルダ '\(folder.name)' 直接フィルタ - スニペット数: \(directSnippets.count)")
+        }
                 
                 // フォルダ別のスニペット（サブメニュー）
                 for folder in dataManager.favoriteFolders {
-                    if let folderSnippets = snippetsByFolder[folder.id], !folderSnippets.isEmpty {
+                    // 直接フィルタリングを使用（snippetsByFolderの問題を回避）
+                    let folderSnippets = snippetItems.filter { $0.favoriteFolderId == folder.id }
+                    if !folderSnippets.isEmpty {
                         let folderMenuItem = NSMenuItem(title: "📁 \(folder.name)", action: nil, keyEquivalent: "")
                         folderMenuItem.isEnabled = true
                         
-                        // サブメニューを作成
+                        // サブメニューを作成（スクロール可能）
                         let submenu = NSMenu()
-                        for item in folderSnippets.prefix(5) {
+                        
+                        // すべてのスニペットを表示（NSMenuの自動スクロール機能を使用）
+                        for item in folderSnippets {
                             let submenuItem = NSMenuItem(title: item.displayText, action: #selector(copyToClipboard(_:)), keyEquivalent: "")
                             submenuItem.target = self
                             submenuItem.representedObject = item.content
                             submenu.addItem(submenuItem)
                         }
                         
+                        // メニューの幅を設定（スクロール表示を改善）
+                        submenu.minimumWidth = 200
+                        
                         folderMenuItem.submenu = submenu
                         menu.addItem(folderMenuItem)
+                    } else {
+                        // デバッグ用: 空のフォルダもログに出力
+                        print("DEBUG: フォルダ '\(folder.name)' にはスニペットがありません")
                     }
                 }
                 
                 // フォルダなしのスニペット（サブメニュー）
-                if let unassignedSnippets = snippetsByFolder[nil], !unassignedSnippets.isEmpty {
+                let unassignedSnippets = snippetItems.filter { $0.favoriteFolderId == nil }
+                if !unassignedSnippets.isEmpty {
                     let unassignedMenuItem = NSMenuItem(title: "📁 フォルダなし", action: nil, keyEquivalent: "")
                     unassignedMenuItem.isEnabled = true
                     
-                    // サブメニューを作成
+                    // サブメニューを作成（スクロール可能）
                     let submenu = NSMenu()
-                    for item in unassignedSnippets.prefix(5) {
+                    
+                    // すべてのスニペットを表示（NSMenuの自動スクロール機能を使用）
+                    for item in unassignedSnippets {
                         let submenuItem = NSMenuItem(title: item.displayText, action: #selector(copyToClipboard(_:)), keyEquivalent: "")
                         submenuItem.target = self
                         submenuItem.representedObject = item.content
                         submenu.addItem(submenuItem)
                     }
+                    
+                    // メニューの幅を設定（スクロール表示を改善）
+                    submenu.minimumWidth = 200
                     
                     unassignedMenuItem.submenu = submenu
                     menu.addItem(unassignedMenuItem)
@@ -223,6 +267,7 @@ class ClipboardManager: ObservableObject {
         pasteboard.clearContents()
         pasteboard.setString(content, forType: .string)
     }
+    
     
     /// 履歴管理ウィンドウを開く
     @objc private func openHistoryWindow() {
