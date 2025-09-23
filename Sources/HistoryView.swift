@@ -150,7 +150,8 @@ struct HistoryView: View {
                 dataManager: dataManager,
                 isReorderMode: $isReorderMode,
                 hasBeenReordered: $hasBeenReordered,
-                reorderModeItems: $reorderModeItems
+                reorderModeItems: $reorderModeItems,
+                searchText: searchText
             )
             .onChange(of: isReorderMode) { newValue in
                 if !newValue {
@@ -1054,6 +1055,7 @@ struct FavoritesListView: View {
     @Binding var isReorderMode: Bool
     @Binding var hasBeenReordered: Bool
     @Binding var reorderModeItems: [ClipboardItem]
+    let searchText: String
     @State private var refreshID = UUID()
     
     // フォルダなしエリアへのドロップ処理
@@ -1100,24 +1102,27 @@ struct FavoritesListView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    // フォルダ別のスニペットを表示（空のフォルダも含む）
+                    // フォルダ別のスニペットを表示
                     ForEach(dataManager.favoriteFolders) { folder in
                         let folderItems = items.filter { $0.favoriteFolderId == folder.id }
                         let _ = Logger.shared.log("フォルダ '\(folder.name)' (ID: \(folder.id.uuidString)) のアイテム数: \(folderItems.count)")
                         
-                        FolderAccordionView(
-                            folder: folder,
-                            items: folderItems,
-                            isExpanded: expandedFolders.contains(folder.id),
-                            onToggle: {
-                                if expandedFolders.contains(folder.id) {
-                                    expandedFolders.remove(folder.id)
-                                } else {
-                                    expandedFolders.insert(folder.id)
-                                }
-                            },
-                            dataManager: dataManager
-                        )
+                        // 検索時のみ空フォルダを非表示、通常時は空フォルダも表示
+                        if !searchText.isEmpty ? !folderItems.isEmpty : true {
+                            FolderAccordionView(
+                                folder: folder,
+                                items: folderItems,
+                                isExpanded: expandedFolders.contains(folder.id),
+                                onToggle: {
+                                    if expandedFolders.contains(folder.id) {
+                                        expandedFolders.remove(folder.id)
+                                    } else {
+                                        expandedFolders.insert(folder.id)
+                                    }
+                                },
+                                dataManager: dataManager
+                            )
+                        }
                     }
                     
                     // フォルダなしのスニペットを直接表示
@@ -1210,7 +1215,8 @@ struct FavoritesListView: View {
                     ForEach(dataManager.favoriteFolders) { folder in
                         let folderItems = reorderModeItems.filter { $0.favoriteFolderId == folder.id }
                     
-                    if !folderItems.isEmpty {
+                        // 検索時のみ空フォルダを非表示、通常時は空フォルダも表示
+                        if !searchText.isEmpty ? !folderItems.isEmpty : true {
                         VStack(alignment: .leading, spacing: 8) {
                             // フォルダヘッダー
                             HStack {
