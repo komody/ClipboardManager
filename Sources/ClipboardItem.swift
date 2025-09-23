@@ -165,6 +165,12 @@ class ClipboardDataManager: ObservableObject {
         let existingFolders = ["Git", "React", "Laravel"]
         let hasExistingFolders = favoriteFolders.contains { existingFolders.contains($0.name) }
         
+        print("DEBUG: 開発用スニペット初期化 - 既存フォルダ: \(hasExistingFolders)")
+        print("DEBUG: 現在のフォルダ数: \(favoriteFolders.count)")
+        for folder in favoriteFolders {
+            print("DEBUG: フォルダ: \(folder.name)")
+        }
+        
         if !hasExistingFolders {
             // Git フォルダとスニペット
             let gitSnippets = [
@@ -517,7 +523,22 @@ class ClipboardDataManager: ObservableObject {
             favoriteItems.append(newItem)
         }
         
+        print("DEBUG: フォルダ '\(folderName)' 作成完了 - スニペット数: \(snippets.count)")
+        print("DEBUG: 総スニペット数: \(favoriteItems.count)")
+        
+        // 作成されたスニペットの詳細をログ出力
+        let folderSnippets = favoriteItems.filter { $0.favoriteFolderId == newFolder.id }
+        print("DEBUG: フォルダ '\(folderName)' のスニペット詳細:")
+        for (index, snippet) in folderSnippets.enumerated() {
+            print("DEBUG:  スニペット \(index + 1): '\(snippet.content.prefix(20))...' - フォルダID: \(snippet.favoriteFolderId?.uuidString ?? "nil")")
+        }
+        
         saveData()
+        
+        // メニューバーの更新を通知
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: NSNotification.Name("UpdateMenuBar"), object: nil)
+        }
     }
     
     /// スニペットの並び替え
