@@ -131,6 +131,9 @@ class ClipboardDataManager: ObservableObject {
         loadData()
         initializeDefaultCategories()
         initializeDefaultFavoriteFolders()
+        
+        // 開発用フォルダとスニペットを初期化
+        initializeDevelopmentSnippets()
     }
     
     /// デフォルトカテゴリを初期化
@@ -154,6 +157,60 @@ class ClipboardDataManager: ObservableObject {
         }
         
         saveData()
+    }
+    
+    /// 開発用フォルダとスニペットを初期化
+    func initializeDevelopmentSnippets() {
+        // 既存の開発用フォルダがあるかチェック
+        let existingFolders = ["Git", "React", "Laravel"]
+        let hasExistingFolders = favoriteFolders.contains { existingFolders.contains($0.name) }
+        
+        if !hasExistingFolders {
+            // Git フォルダとスニペット
+            let gitSnippets = [
+                ("git init", "新しいGitリポジトリを初期化"),
+                ("git clone <url>", "リモートリポジトリをクローン"),
+                ("git add .", "すべての変更をステージング"),
+                ("git commit -m \"<message>\"", "変更をコミット"),
+                ("git push origin main", "メインブランチにプッシュ"),
+                ("git pull origin main", "リモートから最新を取得"),
+                ("git branch <branch-name>", "新しいブランチを作成"),
+                ("git checkout <branch-name>", "ブランチを切り替え"),
+                ("git merge <branch-name>", "ブランチをマージ"),
+                ("git status", "リポジトリの状態を確認")
+            ]
+            createFolderWithSnippets(folderName: "Git", folderColor: "F97316", snippets: gitSnippets)
+            
+            // React フォルダとスニペット
+            let reactSnippets = [
+                ("npx create-react-app <app-name>", "新しいReactアプリを作成"),
+                ("npm start", "開発サーバーを起動"),
+                ("npm run build", "プロダクションビルド"),
+                ("npm test", "テストを実行"),
+                ("import React from 'react'", "Reactをインポート"),
+                ("const [state, setState] = useState(initial)", "useStateフック"),
+                ("useEffect(() => {}, [])", "useEffectフック"),
+                ("<div className=\"container\">", "JSX要素"),
+                ("export default Component", "コンポーネントをエクスポート"),
+                ("props.children", "子要素にアクセス")
+            ]
+            createFolderWithSnippets(folderName: "React", folderColor: "3B82F6", snippets: reactSnippets)
+            
+            // Laravel フォルダとスニペット
+            let laravelSnippets = [
+                ("composer create-project laravel/laravel <project-name>", "新しいLaravelプロジェクトを作成"),
+                ("php artisan serve", "開発サーバーを起動"),
+                ("php artisan make:controller <ControllerName>", "コントローラーを作成"),
+                ("php artisan make:model <ModelName>", "モデルを作成"),
+                ("php artisan make:migration <migration_name>", "マイグレーションを作成"),
+                ("php artisan migrate", "マイグレーションを実行"),
+                ("php artisan route:list", "ルート一覧を表示"),
+                ("php artisan tinker", "Tinkerを起動"),
+                ("php artisan cache:clear", "キャッシュをクリア"),
+                ("php artisan config:cache", "設定をキャッシュ")
+            ]
+            createFolderWithSnippets(folderName: "Laravel", folderColor: "EF4444", snippets: laravelSnippets)
+        }
     }
     
     /// 新しいクリップボードアイテムを履歴に追加
@@ -439,6 +496,27 @@ class ClipboardDataManager: ObservableObject {
                 favoriteItems[index].favoriteFolderId = folderId
             }
         }
+        saveData()
+    }
+    
+    /// フォルダとスニペットを一括作成するヘルパー関数
+    func createFolderWithSnippets(folderName: String, folderColor: String, snippets: [(content: String, description: String)]) {
+        // フォルダを作成
+        let newFolder = FavoriteFolder(name: folderName, color: folderColor, isDefault: false)
+        favoriteFolders.append(newFolder)
+        
+        // スニペットを追加
+        for snippet in snippets {
+            let newItem = ClipboardItem(
+                content: snippet.content,
+                isFavorite: true,
+                categoryId: nil,
+                favoriteFolderId: newFolder.id,
+                description: snippet.description
+            )
+            favoriteItems.append(newItem)
+        }
+        
         saveData()
     }
     
