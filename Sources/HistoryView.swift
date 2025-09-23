@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 // MARK: - フォルダ色パレット
 struct FolderColorPalette {
@@ -64,6 +65,7 @@ class Logger {
 struct HistoryView: View {
     @ObservedObject var dataManager: ClipboardDataManager
     @State private var searchText = ""
+    @FocusState private var isSearchFocused: Bool
     @State private var selectedTab = 0
     @State private var showingClearAlert = false
     @State private var selectedFavoriteFolder: UUID? = nil
@@ -86,10 +88,11 @@ struct HistoryView: View {
             
             // 共通検索バー
             HStack {
-                SearchBar(text: $searchText, placeholder: "検索...")
+                SearchBar(text: $searchText, placeholder: "検索...", isFocused: $isSearchFocused)
                 Spacer()
             }
             .padding(.horizontal, ProfessionalBlueTheme.Spacing.xl)
+            .onAppear { isSearchFocused = true }
             
             // シンプルなコンテンツエリア
             Group {
@@ -1765,6 +1768,11 @@ struct SnippetItemRow: View {
                             )
                             .cornerRadius(4)
                             .lineLimit(3...6)
+                            .onPasteCommand(of: [UTType.text, UTType.plainText]) { _ in
+                                if let pasted = NSPasteboard.general.string(forType: .string) {
+                                    editedContent.append(pasted)
+                                }
+                            }
                     }
                     
                     // 説明編集
@@ -1784,6 +1792,11 @@ struct SnippetItemRow: View {
                                     .stroke(ProfessionalBlueTheme.Colors.border, lineWidth: 1)
                             )
                             .cornerRadius(4)
+                            .onPasteCommand(of: [UTType.text, UTType.plainText]) { _ in
+                                if let pasted = NSPasteboard.general.string(forType: .string) {
+                                    editedDescription.append(pasted)
+                                }
+                            }
                     }
                     
                     // フォルダ選択

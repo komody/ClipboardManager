@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - 共通ボタンコンポーネント
 struct ThemedButton: View {
@@ -108,10 +110,13 @@ struct ThemedCard<Content: View>: View {
 struct SearchBar: View {
     @Binding var text: String
     let placeholder: String
+    // 親からフォーカスを渡せるようにする（任意）
+    let isFocused: FocusState<Bool>.Binding?
     
-    init(text: Binding<String>, placeholder: String = "検索...") {
+    init(text: Binding<String>, placeholder: String = "検索...", isFocused: FocusState<Bool>.Binding? = nil) {
         self._text = text
         self.placeholder = placeholder
+        self.isFocused = isFocused
     }
     
     var body: some View {
@@ -120,9 +125,25 @@ struct SearchBar: View {
                 .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
                 .font(.system(size: ProfessionalBlueTheme.FontSize.sm))
             
-            TextField(placeholder, text: $text)
-                .textFieldStyle(PlainTextFieldStyle())
-                .font(.system(size: ProfessionalBlueTheme.FontSize.sm))
+            Group {
+                if let isFocused = isFocused {
+                    #if os(macOS)
+                    AppKitSearchField(text: $text, placeholder: placeholder)
+                        .focused(isFocused)
+                    #else
+                    TextField(placeholder, text: $text)
+                        .focused(isFocused)
+                    #endif
+                } else {
+                    #if os(macOS)
+                    AppKitSearchField(text: $text, placeholder: placeholder)
+                    #else
+                    TextField(placeholder, text: $text)
+                    #endif
+                }
+            }
+            .textFieldStyle(PlainTextFieldStyle())
+            .font(.system(size: ProfessionalBlueTheme.FontSize.sm))
             
             if !text.isEmpty {
                 Button(action: { text = "" }) {
@@ -143,6 +164,58 @@ struct SearchBar: View {
         .cornerRadius(ProfessionalBlueTheme.CornerRadius.md)
     }
 }
+
+// MARK: - macOS向け NSSearchField ラッパー
+#if os(macOS)
+struct AppKitSearchField: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    
+    func makeNSView(context: Context) -> NSSearchField {
+        let field = NSSearchField()
+        field.placeholderString = placeholder
+        field.isEditable = true
+        field.isSelectable = true
+        field.usesSingleLineMode = true
+        field.cell?.wraps = false
+        field.cell?.isScrollable = true
+        field.delegate = context.coordinator
+        
+        // 右クリックメニューを追加
+        let menu = NSMenu()
+        let pasteItem = NSMenuItem(title: "ペースト", action: #selector(Coordinator.paste(_:)), keyEquivalent: "v")
+        pasteItem.target = context.coordinator
+        menu.addItem(pasteItem)
+        field.menu = menu
+        
+        return field
+    }
+    
+    func updateNSView(_ nsView: NSSearchField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    
+    final class Coordinator: NSObject, NSSearchFieldDelegate {
+        let parent: AppKitSearchField
+        init(_ parent: AppKitSearchField) { self.parent = parent }
+        
+        @MainActor func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? NSSearchField else { return }
+            parent.text = field.stringValue
+        }
+        
+        @MainActor @objc func paste(_ sender: Any?) {
+            if let pasted = NSPasteboard.general.string(forType: .string) {
+                parent.text.append(pasted)
+            }
+        }
+    }
+}
+#endif
 
 // MARK: - 共通アイテム行コンポーネント
 struct ItemRow: View {
