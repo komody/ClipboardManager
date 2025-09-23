@@ -158,9 +158,6 @@ struct HistoryView: View {
             )
             .onChange(of: isReorderMode) { newValue in
                 if !newValue {
-                    Logger.shared.log("並び替えモード終了: 変更を反映中...")
-                    Logger.shared.log("reorderModeItems count: \(reorderModeItems.count)")
-                    Logger.shared.log("dataManager.favoriteItems count: \(dataManager.favoriteItems.count)")
                     
                     // 並び替えモード終了時に変更を反映
                     dataManager.favoriteItems = reorderModeItems
@@ -168,8 +165,6 @@ struct HistoryView: View {
                     
                     // 並び替えが行われたことを記録
                     hasBeenReordered = true
-                    Logger.shared.log("hasBeenReordered = true に設定")
-                    Logger.shared.log("並び替えモード終了: 反映完了")
                 }
             }
         }
@@ -1108,7 +1103,6 @@ struct FavoritesListView: View {
                     // フォルダ別のスニペットを表示
                     ForEach(dataManager.favoriteFolders) { folder in
                         let folderItems = items.filter { $0.favoriteFolderId == folder.id }
-                        let _ = Logger.shared.log("フォルダ '\(folder.name)' (ID: \(folder.id.uuidString)) のアイテム数: \(folderItems.count)")
                         
                         // 検索時のみ空フォルダを非表示、通常時は空フォルダも表示
                         if !searchText.isEmpty ? !folderItems.isEmpty : true {
@@ -1130,7 +1124,6 @@ struct FavoritesListView: View {
                     
                     // フォルダなしのスニペットを直接表示
                     let unassignedItems = items.filter { $0.favoriteFolderId == nil }
-                    let _ = Logger.shared.log("フォルダなしアイテム数: \(unassignedItems.count)")
                     if !unassignedItems.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             // ヘッダー
@@ -1416,14 +1409,11 @@ struct FavoritesListView: View {
     
     /// スニペットを上に移動
     private func moveSnippetUp(item: ClipboardItem, in items: [ClipboardItem], folderId: UUID?) {
-        Logger.shared.log("moveSnippetUp called for item: \(item.content)")
         guard let currentIndex = items.firstIndex(where: { $0.id == item.id }),
               currentIndex > 0 else { 
-            Logger.shared.log("moveSnippetUp: cannot move up - currentIndex: \(items.firstIndex(where: { $0.id == item.id }) ?? -1)")
             return 
         }
         
-        Logger.shared.log("moveSnippetUp: moving from index \(currentIndex) to \(currentIndex - 1)")
         
         // reorderModeItemsから該当フォルダのスニペットを取得
         let targetFolderSnippets = reorderModeItems.filter { item in
@@ -1447,25 +1437,20 @@ struct FavoritesListView: View {
         }
         
         reorderModeItems = reorderedItems + otherSnippets
-        Logger.shared.log("moveSnippetUp: reorderModeItems updated, count: \(reorderModeItems.count)")
         
         // UI更新を確実にする
         DispatchQueue.main.async {
             self.refreshID = UUID()
         }
-        Logger.shared.log("moveSnippetUp: reorder completed")
     }
     
     /// スニペットを下に移動
     private func moveSnippetDown(item: ClipboardItem, in items: [ClipboardItem], folderId: UUID?) {
-        Logger.shared.log("moveSnippetDown called for item: \(item.content)")
         guard let currentIndex = items.firstIndex(where: { $0.id == item.id }),
               currentIndex < items.count - 1 else { 
-            Logger.shared.log("moveSnippetDown: cannot move down - currentIndex: \(items.firstIndex(where: { $0.id == item.id }) ?? -1), count: \(items.count)")
             return 
         }
         
-        Logger.shared.log("moveSnippetDown: moving from index \(currentIndex) to \(currentIndex + 1)")
         
         // reorderModeItemsから該当フォルダのスニペットを取得
         let targetFolderSnippets = reorderModeItems.filter { item in
@@ -1489,13 +1474,11 @@ struct FavoritesListView: View {
         }
         
         reorderModeItems = reorderedItems + otherSnippets
-        Logger.shared.log("moveSnippetDown: reorderModeItems updated, count: \(reorderModeItems.count)")
         
         // UI更新を確実にする
         DispatchQueue.main.async {
             self.refreshID = UUID()
         }
-        Logger.shared.log("moveSnippetDown: reorder completed")
     }
     
 }
@@ -1612,7 +1595,6 @@ struct SnippetRegistrationView: View {
     
     var body: some View {
         VStack(spacing: 16) {
-            let _ = Logger.shared.log("スニペット登録ビュー表示 - 利用可能なフォルダ数: \(dataManager.favoriteFolders.count)")
             // ヘッダー
             HStack {
                 Text("新しいスニペットを登録")
@@ -1674,7 +1656,6 @@ struct SnippetRegistrationView: View {
                         }
                         .pickerStyle(MenuPickerStyle())
                         .onChange(of: selectedFolderId) { newValue in
-                            Logger.shared.log("フォルダ選択変更: \(newValue?.uuidString ?? "nil")")
                         }
                         
                         Button("フォルダ管理") {
@@ -1698,14 +1679,11 @@ struct SnippetRegistrationView: View {
                 
                 Button("登録") {
                     if !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Logger.shared.log("登録時のselectedFolderId: \(selectedFolderId?.uuidString ?? "nil")")
                         let newItem = ClipboardItem(
                             content: content.trimmingCharacters(in: .whitespacesAndNewlines),
                             favoriteFolderId: selectedFolderId,
                             description: description.trimmingCharacters(in: .whitespacesAndNewlines)
                         )
-                        Logger.shared.log("作成されたアイテムのfavoriteFolderId: \(newItem.favoriteFolderId?.uuidString ?? "nil")")
-                        Logger.shared.log("作成されたアイテムのdescription: '\(newItem.description)'")
                         dataManager.addToFavorites(newItem, to: selectedFolderId)
                         onDismiss()
                     }
@@ -1833,7 +1811,6 @@ struct SnippetItemRow: View {
                     HStack(spacing: 8) {
                         Button("保存") {
                             // 編集内容を保存
-                            Logger.shared.log("編集保存開始 - 元の説明: '\(item.description)', 新しい説明: '\(editedDescription)'")
                             var updatedItem = ClipboardItem(
                                 content: editedContent.trimmingCharacters(in: .whitespacesAndNewlines),
                                 isFavorite: item.isFavorite,
@@ -1844,7 +1821,6 @@ struct SnippetItemRow: View {
                             // 既存のIDを保持
                             updatedItem.id = item.id
                             updatedItem.timestamp = item.timestamp
-                            Logger.shared.log("更新されたアイテムの説明: '\(updatedItem.description)'")
                             onEdit(updatedItem)
                             isEditing = false
                         }
@@ -1889,13 +1865,11 @@ struct SnippetItemRow: View {
                         
                         // 説明（あれば表示）
                         if !item.description.isEmpty {
-                            let _ = Logger.shared.log("説明を表示: '\(item.description)'")
                             Text(item.description)
                                 .font(.system(size: 12))
                                 .foregroundColor(ProfessionalBlueTheme.Colors.textMuted)
                                 .lineLimit(2)
                         } else {
-                            let _ = Logger.shared.log("説明が空のため表示しない")
                         }
                     }
                     
