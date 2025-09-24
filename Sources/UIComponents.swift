@@ -171,15 +171,32 @@ struct AppKitSearchField: NSViewRepresentable {
     @Binding var text: String
     let placeholder: String
     
-    func makeNSView(context: Context) -> NSSearchField {
-        let field = NSSearchField()
-        field.placeholderString = placeholder
-        field.isEditable = true
-        field.isSelectable = true
-        field.usesSingleLineMode = true
-        field.cell?.wraps = false
-        field.cell?.isScrollable = true
-        field.delegate = context.coordinator
+            func makeNSView(context: Context) -> NSSearchField {
+                let field = NSSearchField()
+                field.placeholderString = placeholder
+                field.isEditable = true
+                field.isSelectable = true
+                field.usesSingleLineMode = true
+                field.cell?.wraps = false
+                field.cell?.isScrollable = true
+                field.delegate = context.coordinator
+                
+                // NSSearchFieldのデフォルトの枠線とフォーカスリングを無効化
+                field.focusRingType = .none
+                field.isBezeled = false
+                field.isBordered = false
+                field.drawsBackground = false
+                
+                // NSSearchFieldのデフォルトのアイコンとボタンを無効化
+                field.searchMenuTemplate = nil
+                field.sendsSearchStringImmediately = false
+                field.sendsWholeSearchString = false
+                
+                // カスタムセルを使用してアイコンとボタンを非表示
+                if let cell = field.cell as? NSSearchFieldCell {
+                    cell.searchButtonCell = nil
+                    cell.cancelButtonCell = nil
+                }
         
         // 右クリックメニューを追加
         let menu = NSMenu()
