@@ -181,11 +181,8 @@ struct AppKitSearchField: NSViewRepresentable {
                 field.cell?.isScrollable = true
                 field.delegate = context.coordinator
                 
-                // NSSearchFieldのデフォルトの枠線とフォーカスリングを無効化
+                // フォーカスリングのみ無効化（キーボードイベント処理は維持）
                 field.focusRingType = .none
-                field.isBezeled = false
-                field.isBordered = false
-                field.drawsBackground = false
                 
                 // NSSearchFieldのデフォルトのアイコンとボタンを無効化
                 field.searchMenuTemplate = nil

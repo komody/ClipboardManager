@@ -92,7 +92,6 @@ struct HistoryView: View {
                 Spacer()
             }
             .padding(.horizontal, ProfessionalBlueTheme.Spacing.xl)
-            .onAppear { isSearchFocused = true }
             
             // シンプルなコンテンツエリア
             Group {
