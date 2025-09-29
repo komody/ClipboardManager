@@ -39,6 +39,10 @@ macOS用のモダンな常駐クリップボード管理アプリです。コピ
    - **🚪 終了**: アプリを終了
 4. **再コピー**: メニューからテキストを選択すると、クリップボードに再コピーされます
 
+<img src="images/menu-bar-screenshot.png" width="25%" alt="メニューバー画面">
+
+[🎬 メニューバー画面のデモ動画を見る](https://github.com/komody/ClipboardManager/issues/29#issuecomment-3344806378)
+
 ### 🎛️ 履歴管理画面
 1. **管理画面を開く**: メニューバーから「⚙️ 履歴を管理...」を選択
 2. **履歴タブ**: コピー履歴を確認・管理
@@ -46,27 +50,32 @@ macOS用のモダンな常駐クリップボード管理アプリです。コピ
 4. **検索機能**: リアルタイム検索で履歴を絞り込み
 5. **アイテム操作**: 各アイテムからコピー、スニペット追加、フォルダ変更、削除が可能
 
-**詳細操作**: 履歴画面の詳細な使い方
-[![履歴画面デモ](https://github.com/komody/ClipboardManager/issues/26#issuecomment-3341802065)](https://github.com/komody/ClipboardManager/issues/26#issuecomment-3341802065)
+<img src="images/history-screen-screenshot.png" width="50%" alt="履歴管理画面">
 
-### 📝 スニペット管理
+[🎬 履歴管理画面のデモ動画を見る](https://github.com/komody/ClipboardManager/issues/30#issuecomment-3344902965)
+
+### 📝 スニペット画面
+#### 📝 スニペット管理
+
 - **スニペット登録**: 直接スニペットを登録・編集可能
 - **説明追加**: スニペットに説明を追加して管理
 - **フォルダ分類**: スニペットをフォルダごとに分類
 - **編集機能**: スニペットの内容・説明・フォルダを編集可能
 
-### 📁 スニペットフォルダ管理
+<img src="images/snippet-screen-screenshot.png" width="50%" alt="スニペット管理画面">
+
+[🎬 スニペット管理のデモ動画を見る](https://github.com/komody/ClipboardManager/issues/31#issuecomment-3345171636)
+
+#### 📁 スニペットフォルダ管理
 - **フォルダ作成**: カスタムフォルダを作成してスニペットを整理
 - **色分け**: フォルダごとに色を設定して視覚的に区別
 - **フォルダ編集**: フォルダ名・色の変更が可能
 - **スニペット移動**: フォルダ編集画面でスニペットを移動可能
 
-#### フォルダ編集画面でのスニペット移動
-1. **フォルダ編集を開く**: スニペットタブでフォルダの「編集」ボタンをクリック
-2. **フォルダなしのスニペット確認**: 編集画面下部に「フォルダなしのスニペット」セクションが表示
-3. **スニペット選択**: 移動したいスニペットのチェックボックスを選択
-4. **移動実行**: 「このフォルダに移動」ボタンをクリック
-5. **確認**: 確認ダイアログで「このフォルダに移動」を選択
+<img src="images/folder-edit-screenshot.png" width="50%" alt="フォルダ編集画面">
+
+[🎬 スニペットフォルダ管理のデモ動画を見る](https://github.com/komody/ClipboardManager/issues/31#issuecomment-3345202565)
+
 
 ## 🛠️ 技術仕様
 
