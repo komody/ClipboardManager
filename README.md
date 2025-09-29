@@ -39,7 +39,19 @@ macOS用のモダンな常駐クリップボード管理アプリです。コピ
    - **🚪 終了**: アプリを終了
 4. **再コピー**: メニューからテキストを選択すると、クリップボードに再コピーされます
 
-**📹 メニューバー画面のデモ動画**: [メニューバー画面デモ用 #29](https://github.com/komody/ClipboardManager/issues/29#issuecomment-3344806378)
+## 動画リンクの改善候補
+
+### 1. ボタンスタイル（推奨）
+[🎬 メニューバー画面のデモ動画を見る](https://github.com/komody/ClipboardManager/issues/29#issuecomment-3344806378)
+
+### 2. アイコン付きボタン
+[📱 メニューバー操作デモ](https://github.com/komody/ClipboardManager/issues/29#issuecomment-3344806378)
+
+### 3. 説明付きリンク
+**動画で確認**: [メニューバーの使い方を動画で見る](https://github.com/komody/ClipboardManager/issues/29#issuecomment-3344806378)
+
+### 4. カード風スタイル
+> **📹 デモ動画**: [メニューバー画面の操作方法](https://github.com/komody/ClipboardManager/issues/29#issuecomment-3344806378)
 
 ### 🎛️ 履歴管理画面
 1. **管理画面を開く**: メニューバーから「⚙️ 履歴を管理...」を選択
@@ -47,6 +59,8 @@ macOS用のモダンな常駐クリップボード管理アプリです。コピ
 3. **スニペットタブ**: フォルダ別にスニペットを管理
 4. **検索機能**: リアルタイム検索で履歴を絞り込み
 5. **アイテム操作**: 各アイテムからコピー、スニペット追加、フォルダ変更、削除が可能
+
+**📹 履歴管理画面のデモ動画**: [履歴管理画面デモ用 #30](https://github.com/komody/ClipboardManager/issues/30#issuecomment-3344902965)
 
 ### 📝 スニペット管理
 - **スニペット登録**: 直接スニペットを登録・編集可能
