@@ -39,7 +39,7 @@ macOS用のモダンな常駐クリップボード管理アプリです。コピ
    - **🚪 終了**: アプリを終了
 4. **再コピー**: メニューからテキストを選択すると、クリップボードに再コピーされます
 
-<img src="images/menu-bar-screenshot.png" height="50%" alt="メニューバー画面">
+<img src="images/menu-bar-screenshot.png" width="25%" alt="メニューバー画面">
 
 [🎬 メニューバー画面のデモ動画を見る](https://github.com/komody/ClipboardManager/issues/29#issuecomment-3344806378)
 
