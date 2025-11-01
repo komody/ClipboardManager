@@ -88,10 +88,10 @@ class ClipboardManager: ObservableObject {
     /// グローバルキーボードイベントの監視を設定
     private func setupGlobalKeyboardMonitoring() {
         globalKeyboardMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            // Cmd+Option+Cでマウス位置にメニューを表示
+            // Cmd+Option+Vでマウス位置にメニューを表示
             if event.modifierFlags.contains(.command) && 
                event.modifierFlags.contains(.option) && 
-               event.keyCode == 8 { // C key
+               event.keyCode == 9 { // V key
                 Task { @MainActor in
                     self?.showMenuAtMousePosition()
                 }
